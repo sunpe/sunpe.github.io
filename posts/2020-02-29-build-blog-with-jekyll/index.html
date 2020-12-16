@@ -1,0 +1,290 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+  <title>使用 Jekyll 和 Git Page 搭建个人博客 - hello world</title>
+  <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="stay foolish, stay hungry" />
+<meta name="author" content="sunpeng" />
+
+
+<meta name="baidu-site-verification" content="vWQN0uJLC2" />
+<meta property="og:title" content="使用 Jekyll 和 Git Page 搭建个人博客" />
+<meta property="og:description" content="jekyll 是一个简单的静态网站生成器，可以将 markdown 文档或 html 文档转换成一个完整的可发布的静态网站。并且内置 GitHub Pages 支持。
+GitHub Pages 是一项静态站点托管服务，直接从 GitHub 上的仓库获取 HTML、CSS 和 JavaScript 文件，可以通过构建过程运行文件，发布网站。目前 github 支持 3 种类型的 GitHub Pages 站点：project，user 和 organization，具体可以参考github的帮助文档。" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://sunpe.github.io/posts/2020-02-29-build-blog-with-jekyll/" />
+<meta property="article:published_time" content="2020-02-29T22:00:00+08:00" />
+<meta property="article:modified_time" content="2020-02-29T22:00:00+08:00" />
+
+<meta name="generator" content="Hugo 0.75.1" />
+    
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://sunpe.github.io/fontawesome/css/all.min.css" />
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
+  
+  
+  <link rel="stylesheet" type="text/css" href="https://sunpe.github.io/css/styles.css" /></head>
+
+<body>
+  <div id="container">
+    <header>
+      <h1>
+        <a href="https://sunpe.github.io/">hello world</a>
+      </h1>
+
+      <ul id="social-media">
+      </ul>
+      
+      <p><em>stay foolish, stay hungry</em></p>
+      
+    </header>
+
+    
+<nav>
+    <ul>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/">
+                <i class="fa-li fa  fa-lg"></i><span>Home</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/posts/">
+                <i class="fa-li fa  fa-lg"></i><span>Posts</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/tags/">
+                <i class="fa-li fa  fa-lg"></i><span>Tags</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/categories/">
+                <i class="fa-li fa  fa-lg"></i><span>Categories</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/about/">
+                <i class="fa-li fa  fa-lg"></i><span>About</span>
+            </a>
+        </li>
+        
+    </ul>
+</nav>
+
+
+    <main>
+
+
+
+
+<article>
+
+    <h1>使用 Jekyll 和 Git Page 搭建个人博客</h1>
+
+    
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2020-02-29T22:00:00&#43;08:00">Feb 29, 2020</time>
+        </li>
+        
+        
+        <li>
+            Categories:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/categories/%E5%B7%A5%E5%85%B7">工具</a>
+                
+            </em>
+        </li>
+        
+
+        
+        <li>
+            Tags:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/tags/%E4%B8%AA%E4%BA%BA%E5%8D%9A%E5%AE%A2">#个人博客</a>
+                
+            </em>
+        </li>
+        
+
+        <li>One minute read</li>
+    </ul>
+</aside>
+
+    
+
+    
+<div class="featured_image">
+    <a href="https://sunpe.github.io/posts/2020-02-29-build-blog-with-jekyll/" title="使用 Jekyll 和 Git Page 搭建个人博客">
+        <img src="">
+    </a>
+</div>
+
+
+
+    <p>jekyll 是一个简单的静态网站生成器，可以将 markdown 文档或 html 文档转换成一个完整的可发布的静态网站。并且内置 GitHub Pages 支持。</p>
+<p>GitHub Pages 是一项静态站点托管服务，直接从 GitHub 上的仓库获取 HTML、CSS 和 JavaScript 文件，可以通过构建过程运行文件，发布网站。目前 github 支持 3 种类型的 GitHub Pages 站点：project，user 和 organization，具体可以参考<a href="https://help.github.com/en/github/working-with-github-pages/about-github-pages">github的帮助文档</a>。</p>
+<h2 id="创建git仓库">创建git仓库</h2>
+<p>创建个人博客是 user 类型的 GitHub Pages 站点。首先需要在 github 上创建 repository。</p>
+<ol>
+<li>点击 github 页面右上角的「New repository」选项。</li>
+</ol>
+<p><img src="https://sunpe.github.io/images/build_blog_with_jekyll/1.png" alt="">
+图 1</p>
+<ol start="2">
+<li>输入仓库名称和说明，个人博客的仓库名称必须为 <code>&lt;user&gt;.github.io</code>。</li>
+</ol>
+<p><img src="https://sunpe.github.io/images/build_blog_with_jekyll/2.png" alt="">
+图 2</p>
+<ol start="3">
+<li>选择仓库的可见性，一般是「public」。</li>
+</ol>
+<p><img src="https://sunpe.github.io/images/build_blog_with_jekyll/3.png" alt="">
+图 3</p>
+<ol start="4">
+<li>创建ReadMe文件。</li>
+</ol>
+<p><img src="https://sunpe.github.io/images/build_blog_with_jekyll/4.png" alt="">
+图 4</p>
+<ol start="5">
+<li>点击「Create repository」按钮，仓库就创建完成。</li>
+</ol>
+<h2 id="通过jeykll创建github-page">通过jeykll创建github page</h2>
+<p>建议使用 Bundler 安装和运行 Jekyll。Bundler 可管理 <code>Ruby gem</code> 依赖项，减少 Jekyll 构建错误和阻止环境相关的bug。</p>
+<ul>
+<li>安装 Ruby，可参考<a href="https://www.ruby-lang.org/en/documentation/installation/">文档</a></li>
+<li>安装 Bundler，可参考<a href="https://bundler.io/">文档</a></li>
+<li>安装 jekyll <code>gem install bundler jekyll</code></li>
+<li>使用jeykll创建站点<code>jekyll new my-awesome-site</code>。执行完之后在目录下会又一个 <code>my-awesome-site</code> 目录，包含了最基本的站点文件。其中 <code>_config.yml</code> 是站点配置文件，<code>_posts</code>是文章目录。</li>
+</ul>
+<pre><code>-----
+|
+|- 404.html
+|- Gemfile
+|- _config.yml
+|- _posts
+|   |-YYYY-mm-DD-welcome-to-jekyll.markdown
+|- about.markdown
+|- index.markdown
+</code></pre><ul>
+<li>在 <code>my-awesome-site</code> 目录使用 <code>jekyll serve</code> 命令就可以编译并启动一个内置的 server，本地会多一个 <code>_site</code> 目录，存放的是编译后的站点文件。可以在浏览器输入 <code>localhost:4000</code> 预览站点了。</li>
+<li>将 <code>my-awesome-site</code> 目录提交到 github 仓库（<code>_site</code>目录和<code>Gemfile.lock</code>文件可以不用提交），就可以通过<code>&lt;user&gt;.github.io</code> 访问页面了。</li>
+</ul>
+<h2 id="发布文章">发布文章</h2>
+<p>jekyll 创建的站点 post 文件名格式为 <code>YEAR-MONTH-DAY-title.md</code>，post 文件需要添加 matter 头，指定 layout 和其他 meta 数据。将编写好的 post 放到 <code>_post</code> 文件，重新发布站点，就可以看到新发布的 post 了。</p>
+<pre><code>---
+layout: post
+title:  &quot;Welcome to Jekyll!&quot;
+---
+# Welcome
+**Hello world**, this is my first Jekyll blog post.
+I hope you like it!
+</code></pre><h2 id="drafts目录">Drafts目录</h2>
+<p>如果 post 没写完，只想保存草稿，可以将 post 文件放在 <code>_drafts</code> 目录（需要新建），而且文件 title 可以不带日期。可以在 <code>jekyll serve</code> 或 <code>jekyll build</code> 命令后添加 <code>--drafts</code> 参数，来预览草稿。</p>
+<h2 id="更换主题">更换主题</h2>
+<p>通过 <code>jekyll new</code> 创建的页面默认的主题是 <a href="https://github.com/jekyll/minima">Minima</a> 。另外 jeykll 有大量优质的主题，可以从以下网站获取 jekyll 主题：</p>
+<ul>
+<li><a href="https://jamstackthemes.dev/ssg/jekyll/">jamstackthemes.dev</a></li>
+<li><a href="http://jekyllthemes.org/">jekyllthemes.org</a></li>
+<li><a href="https://jekyllthemes.io/">jekyllthemes.io</a></li>
+<li><a href="https://jekyll-themes.com/">jekyll-themes.com</a></li>
+</ul>
+<p>详细可以参考<a href="https://jekyllrb.com/docs/themes/g">jekyll theme文档</a>。</p>
+<h2 id="自定义域名">自定义域名</h2>
+<p>github page 支持自定义域名或子域名。可以再阿里云或腾讯云购买一个自己的域名。可以参考<a href="https://help.github.com/en/github/working-with-github-pages/managing-a-custom-domain-for-your-github-pages-site">git page文档</a>。</p>
+<h2 id="参考资料">参考资料</h2>
+<ol>
+<li><a href="https://jekyllrb.com/docs/">https://jekyllrb.com/docs/</a></li>
+<li><a href="https://help.github.com/cn/github/working-with-github-pages/setting-up-a-github-pages-site-with-jekyll">https://help.github.com/cn/github/working-with-github-pages/setting-up-a-github-pages-site-with-jekyll</a></li>
+</ol>
+
+
+</article>
+
+
+<section class="post-nav">
+    <ul>
+        
+        
+        <li>
+            <a href="https://sunpe.github.io/posts/2020-03-20-data-struct-list/">数据结构--列表 <i class="fa fa-chevron-circle-right"></i> </a>
+        </li>
+        
+    </ul>
+</section>
+  
+    
+    
+  
+
+
+
+
+
+</main>
+    <footer>
+        <h6>Copyright © 2020 - sunpeng |
+            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
+            <a href="https://sunpe.github.ioindex.xml">Subscribe </a></h6>
+    </footer>
+</div>
+<script src="https://sunpe.github.io/js/scripts.js"></script>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-161915530-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+<script id="baidu_analytics">
+  var _hmt = _hmt || [];
+  (function() {
+    if (window.location.hostname === 'localhost') return;
+    var hm = document.createElement("script"); hm.async = true;
+    hm.src = "https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+</script>
+
+<script id="baidu_push">
+  (function(){
+    if (window.location.hostname === 'localhost') return;
+    var bp = document.createElement('script'); bp.async = true;
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+      bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+    }
+    else {
+      bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+  })();
+</script>
+</body>
+
+</html>
+

@@ -1,0 +1,244 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+  <title>数据结构--队列 - hello world</title>
+  <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="stay foolish, stay hungry" />
+<meta name="author" content="sunpeng" />
+
+
+<meta name="baidu-site-verification" content="vWQN0uJLC2" />
+<meta property="og:title" content="数据结构--队列" />
+<meta property="og:description" content="和栈相似，队列（queue）也是表，所不同的是队列的插入在表的一端进行而删除则在另一端进行。与栈的后进先出（LIFO）不同，队列中的元素特性是先进先出（FIFO）。
+图 1
+队列的基本操作：
+ 入队，在表的末端，也叫队尾（rear），插入一个元素 出队，删除或返回表的开头，也叫队头（front）的元素  队列的实现 如同栈一样，对于队列而言，任何表的实现都是合法的。对于入队和出队操作，链表和数组的实现都能给出 O(1) 的运行时间。
+队列的数组slice实现 对于队列数据结构，我们保留一个数组 []interface、 队头位置 front、 队尾位置 rear 以及队列中元素的个数 size." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://sunpe.github.io/posts/2020-04-17-data-struct-queue/" />
+<meta property="article:published_time" content="2020-04-17T22:00:00+08:00" />
+<meta property="article:modified_time" content="2020-04-17T22:00:00+08:00" />
+
+<meta name="generator" content="Hugo 0.75.1" />
+    
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://sunpe.github.io/fontawesome/css/all.min.css" />
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
+  
+  
+  <link rel="stylesheet" type="text/css" href="https://sunpe.github.io/css/styles.css" /></head>
+
+<body>
+  <div id="container">
+    <header>
+      <h1>
+        <a href="https://sunpe.github.io/">hello world</a>
+      </h1>
+
+      <ul id="social-media">
+      </ul>
+      
+      <p><em>stay foolish, stay hungry</em></p>
+      
+    </header>
+
+    
+<nav>
+    <ul>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/">
+                <i class="fa-li fa  fa-lg"></i><span>Home</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/posts/">
+                <i class="fa-li fa  fa-lg"></i><span>Posts</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/tags/">
+                <i class="fa-li fa  fa-lg"></i><span>Tags</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/categories/">
+                <i class="fa-li fa  fa-lg"></i><span>Categories</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/about/">
+                <i class="fa-li fa  fa-lg"></i><span>About</span>
+            </a>
+        </li>
+        
+    </ul>
+</nav>
+
+
+    <main>
+
+
+
+
+<article>
+
+    <h1>数据结构--队列</h1>
+
+    
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2020-04-17T22:00:00&#43;08:00">Apr 17, 2020</time>
+        </li>
+        
+        
+        <li>
+            Categories:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/categories/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84">数据结构</a>
+                
+            </em>
+        </li>
+        
+
+        
+        <li>
+            Tags:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84">#数据结构</a>
+                
+            </em>
+        </li>
+        
+
+        <li>One minute read</li>
+    </ul>
+</aside>
+
+    
+
+    
+<div class="featured_image">
+    <a href="https://sunpe.github.io/posts/2020-04-17-data-struct-queue/" title="数据结构--队列">
+        <img src="">
+    </a>
+</div>
+
+
+
+    <p>和栈相似，队列（queue）也是表，所不同的是队列的插入在表的一端进行而删除则在另一端进行。与栈的后进先出（LIFO）不同，队列中的元素特性是先进先出（FIFO）。</p>
+<p><img src="https://sunpe.github.io/images/data_struct_queue/1.png" alt="">
+图 1</p>
+<p>队列的基本操作：</p>
+<ul>
+<li>入队，在表的末端，也叫队尾（rear），插入一个元素</li>
+<li>出队，删除或返回表的开头，也叫队头（front）的元素</li>
+</ul>
+<h2 id="队列的实现">队列的实现</h2>
+<p>如同栈一样，对于队列而言，任何表的实现都是合法的。对于入队和出队操作，链表和数组的实现都能给出 O(1) 的运行时间。</p>
+<h3 id="队列的数组slice实现">队列的数组slice实现</h3>
+<p>对于队列数据结构，我们保留一个数组 []interface、 队头位置 front、 队尾位置 rear 以及队列中元素的个数 size. 如果有元素 X 入队，可以让 size 和 rear 加 1，然后设置 Queue[rear]=X。如果有元素出队，需要返回 Queue[front]，然后size减1，front加1。</p>
+<p><img src="https://sunpe.github.io/images/data_struct_queue/2.png" alt="">
+图 2</p>
+<p>通过数组实现队列有一个潜在的问题，经过几次入队和出队操作之后，front 和 rear 会到数组的边界。简单的解决方式是，如果 front 或 rear 到达数组的尾端，就绕到开头。这种方式叫循环数组实现。</p>
+<p>通过 slice 实现队列也需要限制 slice 的容量，在 front 和 rear 到达边界时，可以采用和数组同样的逻辑，以免 slice 不断扩容。</p>
+<h3 id="队列的链表实现">队列的链表实现</h3>
+<p>和数组的实现方式类似，我们需要定义一个链表，指向队列头元素的指针 front，指向队列尾元素的指针 rear，以及队列元素个数 size。如果有元素 X 入队，可以将 X 添加到链表的尾部，然后将rear 指向 X。如果元素出对，返回并删除 front 指向的元素，然后将 front 指向 front 的前驱元素。</p>
+<h2 id="参考资料">参考资料</h2>
+<ol>
+<li>数据结构与算法分析</li>
+</ol>
+
+
+</article>
+
+
+<section class="post-nav">
+    <ul>
+        
+        <li>
+            <a href="https://sunpe.github.io/posts/2020-04-03-data-struct-stack/"><i class="fa fa-chevron-circle-left"></i> 数据结构--栈</a>
+        </li>
+        
+        
+        <li>
+            <a href="https://sunpe.github.io/posts/2020-04-30-dead-lock/">死锁条件 <i class="fa fa-chevron-circle-right"></i> </a>
+        </li>
+        
+    </ul>
+</section>
+  
+    
+    
+  
+
+
+
+
+
+</main>
+    <footer>
+        <h6>Copyright © 2020 - sunpeng |
+            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
+            <a href="https://sunpe.github.ioindex.xml">Subscribe </a></h6>
+    </footer>
+</div>
+<script src="https://sunpe.github.io/js/scripts.js"></script>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-161915530-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+<script id="baidu_analytics">
+  var _hmt = _hmt || [];
+  (function() {
+    if (window.location.hostname === 'localhost') return;
+    var hm = document.createElement("script"); hm.async = true;
+    hm.src = "https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+</script>
+
+<script id="baidu_push">
+  (function(){
+    if (window.location.hostname === 'localhost') return;
+    var bp = document.createElement('script'); bp.async = true;
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+      bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+    }
+    else {
+      bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+  })();
+</script>
+</body>
+
+</html>
+

@@ -1,0 +1,490 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+  <title>数据结构--列表 - hello world</title>
+  <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="stay foolish, stay hungry" />
+<meta name="author" content="sunpeng" />
+
+
+<meta name="baidu-site-verification" content="vWQN0uJLC2" />
+<meta property="og:title" content="数据结构--列表" />
+<meta property="og:description" content="形如 A1, A2, A3, … AN这样的表，表大小是 N，大小为 0 的表叫空表。对于空表之外的表 Ai&#43;1 是 Ai 的后继，Ai-1 (i&gt;=1) 是 Ai 的前驱。A1 是表的第一个元素，AN 是表的最后一个元素，A1 没有前驱元素，AN 也没有后继元素。" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://sunpe.github.io/posts/2020-03-20-data-struct-list/" />
+<meta property="article:published_time" content="2020-03-20T22:00:00+08:00" />
+<meta property="article:modified_time" content="2020-03-20T22:00:00+08:00" />
+
+<meta name="generator" content="Hugo 0.75.1" />
+    
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://sunpe.github.io/fontawesome/css/all.min.css" />
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
+  
+  
+  <link rel="stylesheet" type="text/css" href="https://sunpe.github.io/css/styles.css" /></head>
+
+<body>
+  <div id="container">
+    <header>
+      <h1>
+        <a href="https://sunpe.github.io/">hello world</a>
+      </h1>
+
+      <ul id="social-media">
+      </ul>
+      
+      <p><em>stay foolish, stay hungry</em></p>
+      
+    </header>
+
+    
+<nav>
+    <ul>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/">
+                <i class="fa-li fa  fa-lg"></i><span>Home</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/posts/">
+                <i class="fa-li fa  fa-lg"></i><span>Posts</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/tags/">
+                <i class="fa-li fa  fa-lg"></i><span>Tags</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/categories/">
+                <i class="fa-li fa  fa-lg"></i><span>Categories</span>
+            </a>
+        </li>
+        
+        <li>
+            <a class="" href="https://sunpe.github.io/about/">
+                <i class="fa-li fa  fa-lg"></i><span>About</span>
+            </a>
+        </li>
+        
+    </ul>
+</nav>
+
+
+    <main>
+
+
+
+
+<article>
+
+    <h1>数据结构--列表</h1>
+
+    
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2020-03-20T22:00:00&#43;08:00">Mar 20, 2020</time>
+        </li>
+        
+        
+        <li>
+            Categories:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/categories/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84">数据结构</a>
+                
+            </em>
+        </li>
+        
+
+        
+        <li>
+            Tags:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84">#数据结构</a>
+                
+            </em>
+        </li>
+        
+
+        <li>7 minutes read</li>
+    </ul>
+</aside>
+
+    
+
+    
+<div class="featured_image">
+    <a href="https://sunpe.github.io/posts/2020-03-20-data-struct-list/" title="数据结构--列表">
+        <img src="">
+    </a>
+</div>
+
+
+
+    <p>形如 A1, A2, A3, … AN这样的表，表大小是 N，大小为 0 的表叫空表。对于空表之外的表 Ai+1 是 Ai 的后继，Ai-1 (i&gt;=1) 是 Ai 的前驱。A1 是表的第一个元素，AN 是表的最后一个元素，A1 没有前驱元素，AN 也没有后继元素。</p>
+<p>表的操作通常有：</p>
+<ul>
+<li>查找元素位置的操作<code>find</code></li>
+<li>返回某个位置上的元素的操作<code>findKth</code></li>
+<li>插入元素的操作<code>insert</code></li>
+<li>删除元素的操作<code>delete</code></li>
+</ul>
+<h2 id="表的实现">表的实现</h2>
+<h3 id="通过数组或slice实现">通过数组或slice实现</h3>
+<p>表的所有操作都可以基于数组或 slice 来实现，数组需要指定数组的大小，而 slice 底层数据也是数组，在空间上也有一定的局限性，特别是在处理未知大小的表的情况下。数组实现的表，<code>find</code> 操作基于实现的不同时间复杂度可能会是 O(N) 或者 O(logN)，<code>findKth</code> 会是 O(1) 的操作，<code>insert</code> 和 <code>delete</code> 操作可能会有很大的开销，比如在表头位置插入新元素或删除表头元素，需要表中的所有元素顺移一位。</p>
+<p>所以基于数组实现的表适合于随机读的情况，而不适于随机写的情况。</p>
+<h3 id="链表">链表</h3>
+<p>为了避免 insert 和 delete 的开销，可以让表的元素不连续，链表（linked list）是由一系列不必在内存中连续的结构组成，每个结构包含表的元素和后继元素的指针（Next），表尾元素的 next 指针是 nil。</p>
+<p><img src="https://sunpe.github.io/images/data_struct_list/1.png" alt="">
+图 1</p>
+<p>这种情况下，insert 和 delete 操作只需要修改 next 指针就可以实现了。比如删除「99」这个元素，只需要将「12」元素的 next 指针指向「37」元素就可以了；要在「99」元素和「37」元素中间插入元素，则需要将「99」元素的 next 指向新的元素，并且将新元素的 next 指向「37」。</p>
+<p>有时候需要倒序遍历链表，单链表的方式显得无能为力，然而解决方法却很简单，只需要在链表的元素中添加一个指针域，指向链表元素的前驱即可。这样就形成了双向链表（double linked list）。</p>
+<p><img src="https://sunpe.github.io/images/data_struct_list/2.png" alt="">
+图 2</p>
+<p>让链表的最后一个链表元素反过来指向第一个链表元素, 就形成了循环链表.</p>
+<p><img src="https://sunpe.github.io/images/data_struct_list/3.png" alt="">
+图 3</p>
+<p>同样的, 如果让双向循环链表的最后一个元素的后继指针指向第一个元素, 第一个元素的前驱指针指向最后一个元素, 就形成了双向循环链表.</p>
+<p><img src="https://sunpe.github.io/images/data_struct_list/3.png" alt="">
+图 4</p>
+<h2 id="链表实现">链表实现</h2>
+<p>golang 的 <code>container/list/List.go</code> 提供了一个双向链表的实现，如下是其中的部分代码。</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// Copyright 2009 The Go Authors. All rights reserved.
+</span><span style="color:#75715e">// Use of this source code is governed by a BSD-style
+</span><span style="color:#75715e">// license that can be found in the LICENSE file.
+</span><span style="color:#75715e"></span>
+<span style="color:#75715e">// Package list implements a doubly linked list.
+</span><span style="color:#75715e">//
+</span><span style="color:#75715e">// To iterate over a list (where l is a *List):
+</span><span style="color:#75715e">//  for e := l.Front(); e != nil; e = e.Next() {
+</span><span style="color:#75715e">//      // do something with e.Value
+</span><span style="color:#75715e">//  }
+</span><span style="color:#75715e">//
+</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">list</span>
+
+<span style="color:#75715e">// Element is an element of a linked list.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Element</span> <span style="color:#66d9ef">struct</span> {
+    <span style="color:#75715e">// Next and previous pointers in the doubly-linked list of elements.
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// To simplify the implementation, internally a list l is implemented
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// as a ring, such that &amp;l.root is both the next element of the last
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// list element (l.Back()) and the previous element of the first list
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// element (l.Front()).
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">next</span>, <span style="color:#a6e22e">prev</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>
+
+    <span style="color:#75715e">// The list to which this element belongs.
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">list</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>
+
+    <span style="color:#75715e">// The value stored with this element.
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">Value</span> <span style="color:#66d9ef">interface</span>{}
+}
+
+<span style="color:#75715e">// Next returns the next list element or nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">e</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#a6e22e">Next</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">p</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span>; <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">p</span> <span style="color:#f92672">!=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span>.<span style="color:#a6e22e">root</span> {
+        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">p</span>
+    }
+    <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+}
+
+<span style="color:#75715e">// Prev returns the previous list element or nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">e</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#a6e22e">Prev</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">p</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span>; <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">p</span> <span style="color:#f92672">!=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span>.<span style="color:#a6e22e">root</span> {
+        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">p</span>
+    }
+    <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+}
+
+<span style="color:#75715e">// List represents a doubly linked list.
+</span><span style="color:#75715e">// The zero value for List is an empty list ready to use.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">List</span> <span style="color:#66d9ef">struct</span> {
+    <span style="color:#a6e22e">root</span> <span style="color:#a6e22e">Element</span> <span style="color:#75715e">// sentinel list element, only &amp;root, root.prev, and root.next are used
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">len</span>  <span style="color:#66d9ef">int</span>     <span style="color:#75715e">// current list length excluding (this) sentinel element
+</span><span style="color:#75715e"></span>}
+
+<span style="color:#75715e">// Init initializes or clears list l.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">Init</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span> {
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">next</span> = <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">len</span> = <span style="color:#ae81ff">0</span>
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>
+}
+
+<span style="color:#75715e">// New returns an initialized list.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">New</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span> { <span style="color:#66d9ef">return</span> new(<span style="color:#a6e22e">List</span>).<span style="color:#a6e22e">Init</span>() }
+
+<span style="color:#75715e">// Len returns the number of elements of list l.
+</span><span style="color:#75715e">// The complexity is O(1).
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">Len</span>() <span style="color:#66d9ef">int</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">len</span> }
+
+<span style="color:#75715e">// Front returns the first element of list l or nil if the list is empty.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">Front</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">len</span> <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span> {
+        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+    }
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">next</span>
+}
+
+<span style="color:#75715e">// Back returns the last element of list l or nil if the list is empty.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">Back</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">len</span> <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span> {
+        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+    }
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">prev</span>
+}
+
+<span style="color:#75715e">// lazyInit lazily initializes a zero List value.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">lazyInit</span>() {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">next</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span> {
+        <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">Init</span>()
+    }
+}
+
+<span style="color:#75715e">// insert inserts e after at, increments l.len, and returns e.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">insert</span>(<span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">at</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#a6e22e">n</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">at</span>.<span style="color:#a6e22e">next</span>
+    <span style="color:#a6e22e">at</span>.<span style="color:#a6e22e">next</span> = <span style="color:#a6e22e">e</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#a6e22e">at</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span> = <span style="color:#a6e22e">n</span>
+    <span style="color:#a6e22e">n</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#a6e22e">e</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> = <span style="color:#a6e22e">l</span>
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">len</span><span style="color:#f92672">++</span>
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">e</span>
+}
+
+<span style="color:#75715e">// insertValue is a convenience wrapper for insert(&amp;Element{Value: v}, at).
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">insertValue</span>(<span style="color:#a6e22e">v</span> <span style="color:#66d9ef">interface</span>{}, <span style="color:#a6e22e">at</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">insert</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">Element</span>{<span style="color:#a6e22e">Value</span>: <span style="color:#a6e22e">v</span>}, <span style="color:#a6e22e">at</span>)
+}
+
+<span style="color:#75715e">// remove removes e from its list, decrements l.len, and returns e.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">remove</span>(<span style="color:#a6e22e">e</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span>.<span style="color:#a6e22e">next</span> = <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span> = <span style="color:#66d9ef">nil</span> <span style="color:#75715e">// avoid memory leaks
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#66d9ef">nil</span> <span style="color:#75715e">// avoid memory leaks
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> = <span style="color:#66d9ef">nil</span>
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">len</span><span style="color:#f92672">--</span>
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">e</span>
+}
+
+<span style="color:#75715e">// move moves e to next to at and returns e.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">move</span>(<span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">at</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">at</span> {
+        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">e</span>
+    }
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span>.<span style="color:#a6e22e">next</span> = <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span>
+
+    <span style="color:#a6e22e">n</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">at</span>.<span style="color:#a6e22e">next</span>
+    <span style="color:#a6e22e">at</span>.<span style="color:#a6e22e">next</span> = <span style="color:#a6e22e">e</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#a6e22e">at</span>
+    <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">next</span> = <span style="color:#a6e22e">n</span>
+    <span style="color:#a6e22e">n</span>.<span style="color:#a6e22e">prev</span> = <span style="color:#a6e22e">e</span>
+
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">e</span>
+}
+
+<span style="color:#75715e">// Remove removes e from l if e is an element of list l.
+</span><span style="color:#75715e">// It returns the element value e.Value.
+</span><span style="color:#75715e">// The element must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">Remove</span>(<span style="color:#a6e22e">e</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#66d9ef">interface</span>{} {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">l</span> {
+        <span style="color:#75715e">// if e.list == l, l must have been initialized when e was inserted
+</span><span style="color:#75715e"></span>        <span style="color:#75715e">// in l or l == nil (e is a zero Element) and l.remove will crash
+</span><span style="color:#75715e"></span>        <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">remove</span>(<span style="color:#a6e22e">e</span>)
+    }
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Value</span>
+}
+
+<span style="color:#75715e">// PushFront inserts a new element e with value v at the front of list l and returns e.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">PushFront</span>(<span style="color:#a6e22e">v</span> <span style="color:#66d9ef">interface</span>{}) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">lazyInit</span>()
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">insertValue</span>(<span style="color:#a6e22e">v</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>)
+}
+
+<span style="color:#75715e">// PushBack inserts a new element e with value v at the back of list l and returns e.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">PushBack</span>(<span style="color:#a6e22e">v</span> <span style="color:#66d9ef">interface</span>{}) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">lazyInit</span>()
+    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">insertValue</span>(<span style="color:#a6e22e">v</span>, <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">prev</span>)
+}
+
+<span style="color:#75715e">// InsertBefore inserts a new element e with value v immediately before mark and returns e.
+</span><span style="color:#75715e">// If mark is not an element of l, the list is not modified.
+</span><span style="color:#75715e">// The mark must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">InsertBefore</span>(<span style="color:#a6e22e">v</span> <span style="color:#66d9ef">interface</span>{}, <span style="color:#a6e22e">mark</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">mark</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> {
+        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+    }
+    <span style="color:#75715e">// see comment in List.Remove about initialization of l
+</span><span style="color:#75715e"></span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">insertValue</span>(<span style="color:#a6e22e">v</span>, <span style="color:#a6e22e">mark</span>.<span style="color:#a6e22e">prev</span>)
+}
+
+<span style="color:#75715e">// InsertAfter inserts a new element e with value v immediately after mark and returns e.
+</span><span style="color:#75715e">// If mark is not an element of l, the list is not modified.
+</span><span style="color:#75715e">// The mark must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">InsertAfter</span>(<span style="color:#a6e22e">v</span> <span style="color:#66d9ef">interface</span>{}, <span style="color:#a6e22e">mark</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span> {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">mark</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> {
+        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+    }
+    <span style="color:#75715e">// see comment in List.Remove about initialization of l
+</span><span style="color:#75715e"></span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">insertValue</span>(<span style="color:#a6e22e">v</span>, <span style="color:#a6e22e">mark</span>)
+}
+
+<span style="color:#75715e">// MoveToFront moves element e to the front of list l.
+</span><span style="color:#75715e">// If e is not an element of l, the list is not modified.
+</span><span style="color:#75715e">// The element must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">MoveToFront</span>(<span style="color:#a6e22e">e</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">next</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">e</span> {
+        <span style="color:#66d9ef">return</span>
+    }
+    <span style="color:#75715e">// see comment in List.Remove about initialization of l
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">move</span>(<span style="color:#a6e22e">e</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>)
+}
+
+<span style="color:#75715e">// MoveToBack moves element e to the back of list l.
+</span><span style="color:#75715e">// If e is not an element of l, the list is not modified.
+</span><span style="color:#75715e">// The element must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">MoveToBack</span>(<span style="color:#a6e22e">e</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">prev</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">e</span> {
+        <span style="color:#66d9ef">return</span>
+    }
+    <span style="color:#75715e">// see comment in List.Remove about initialization of l
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">move</span>(<span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">prev</span>)
+}
+
+<span style="color:#75715e">// MoveBefore moves element e to its new position before mark.
+</span><span style="color:#75715e">// If e or mark is not an element of l, or e == mark, the list is not modified.
+</span><span style="color:#75715e">// The element and mark must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">MoveBefore</span>(<span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">mark</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">e</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">mark</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">mark</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> {
+        <span style="color:#66d9ef">return</span>
+    }
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">move</span>(<span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">mark</span>.<span style="color:#a6e22e">prev</span>)
+}
+
+<span style="color:#75715e">// MoveAfter moves element e to its new position after mark.
+</span><span style="color:#75715e">// If e or mark is not an element of l, or e == mark, the list is not modified.
+</span><span style="color:#75715e">// The element and mark must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">MoveAfter</span>(<span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">mark</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Element</span>) {
+    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">e</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">mark</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">mark</span>.<span style="color:#a6e22e">list</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">l</span> {
+        <span style="color:#66d9ef">return</span>
+    }
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">move</span>(<span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">mark</span>)
+}
+
+<span style="color:#75715e">// PushBackList inserts a copy of an other list at the back of list l.
+</span><span style="color:#75715e">// The lists l and other may be the same. They must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">PushBackList</span>(<span style="color:#a6e22e">other</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) {
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">lazyInit</span>()
+    <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">i</span>, <span style="color:#a6e22e">e</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">other</span>.<span style="color:#a6e22e">Len</span>(), <span style="color:#a6e22e">other</span>.<span style="color:#a6e22e">Front</span>(); <span style="color:#a6e22e">i</span> &gt; <span style="color:#ae81ff">0</span>; <span style="color:#a6e22e">i</span>, <span style="color:#a6e22e">e</span> = <span style="color:#a6e22e">i</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>, <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Next</span>() {
+        <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">insertValue</span>(<span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Value</span>, <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>.<span style="color:#a6e22e">prev</span>)
+    }
+}
+
+<span style="color:#75715e">// PushFrontList inserts a copy of an other list at the front of list l.
+</span><span style="color:#75715e">// The lists l and other may be the same. They must not be nil.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">l</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) <span style="color:#a6e22e">PushFrontList</span>(<span style="color:#a6e22e">other</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">List</span>) {
+    <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">lazyInit</span>()
+    <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">i</span>, <span style="color:#a6e22e">e</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">other</span>.<span style="color:#a6e22e">Len</span>(), <span style="color:#a6e22e">other</span>.<span style="color:#a6e22e">Back</span>(); <span style="color:#a6e22e">i</span> &gt; <span style="color:#ae81ff">0</span>; <span style="color:#a6e22e">i</span>, <span style="color:#a6e22e">e</span> = <span style="color:#a6e22e">i</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>, <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Prev</span>() {
+        <span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">insertValue</span>(<span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Value</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">l</span>.<span style="color:#a6e22e">root</span>)
+    }
+}
+</code></pre></div><h2 id="参考资料">参考资料</h2>
+<ol>
+<li>数据结构与算法分析</li>
+</ol>
+
+
+</article>
+
+
+<section class="post-nav">
+    <ul>
+        
+        <li>
+            <a href="https://sunpe.github.io/posts/2020-02-29-build-blog-with-jekyll/"><i class="fa fa-chevron-circle-left"></i> 使用 Jekyll 和 Git Page 搭建个人博客</a>
+        </li>
+        
+        
+        <li>
+            <a href="https://sunpe.github.io/posts/2020-04-03-data-struct-stack/">数据结构--栈 <i class="fa fa-chevron-circle-right"></i> </a>
+        </li>
+        
+    </ul>
+</section>
+  
+    
+    
+  
+
+
+
+
+
+</main>
+    <footer>
+        <h6>Copyright © 2020 - sunpeng |
+            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
+            <a href="https://sunpe.github.ioindex.xml">Subscribe </a></h6>
+    </footer>
+</div>
+<script src="https://sunpe.github.io/js/scripts.js"></script>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-161915530-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+<script id="baidu_analytics">
+  var _hmt = _hmt || [];
+  (function() {
+    if (window.location.hostname === 'localhost') return;
+    var hm = document.createElement("script"); hm.async = true;
+    hm.src = "https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+</script>
+
+<script id="baidu_push">
+  (function(){
+    if (window.location.hostname === 'localhost') return;
+    var bp = document.createElement('script'); bp.async = true;
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+      bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+    }
+    else {
+      bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+  })();
+</script>
+</body>
+
+</html>
+
