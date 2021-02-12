@@ -175,7 +175,7 @@
 <p><img src="https://sunpe.github.io/images/golang_stack_and_pointer/1.png" alt="">
 图 1</p>
 <p>如图 1 所示，栈空间已经划出了一块作为 main frame，这块区域叫「栈帧」，界定了 main 函数在栈上的边界。这块栈空间随着代码的执行而被创建，变量 <code>count</code> 在这块栈空间的地址是 <code>0x10429fa4</code>。</p>
-<p>图1还展示了一点，在活跃的栈帧外的内存空间是不可用的，可以内存空间和不可用内存空间的边界需要明确一下。</p>
+<p>图1还展示了一点，在活跃的栈帧外的内存空间是不可用的，可用内存空间和不可用内存空间的边界需要明确一下。</p>
 <h2 id="地址">地址</h2>
 <p>变量名表示一个内存地址，如果存在变量值那么内存中一定存在变量值，变量值一定会有内存地址。程序 1 的第 9 行打印出了 <code>count</code> 变量的值和地址：</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">println(<span style="color:#e6db74">&#34;count:\tValue Of[&#34;</span>, <span style="color:#a6e22e">count</span>, <span style="color:#e6db74">&#34;]\tAddr Of[&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">count</span>, <span style="color:#e6db74">&#34;]&#34;</span>)
@@ -213,7 +213,7 @@ println(<span style="color:#e6db74">&#34;inc:\tValue Of[&#34;</span>, <span styl
 <p>如果不需要共享变量，那么就不需要使用指针，使用指针是为了共享，并且当阅读代码时，也应该把 <code>&amp;</code> 操作符当做共享来看。</p>
 <h2 id="指针类型">指针类型</h2>
 <p>任何类型（无论是自定义的类型还是内置类型）都有一个与之对应的指针类型，用来共享数据。比如内置类型 <code>int</code> 的指针类型是 <code>*int</code>，自定义的 <code>User</code> 类型的指针类型是 <code>*User</code>。</p>
-<p>指针类型以 <code>*</code> 开头，并且所有指针类型用相同的内存大小（4 个字节或 8 个字节）来表示内存地址。在 32 为系统（比如 playground），指针类型大小是 4 个字节，在 64 位系统中，指针类型大小是 8 个字节。</p>
+<p>指针类型以 <code>*</code> 开头，并且所有指针类型用相同的内存大小（4 个字节或 8 个字节）来表示内存地址。在 32 位系统（比如 playground），指针类型大小是 4 个字节，在 64 位系统中，指针类型大小是 8 个字节。</p>
 <p>规范的说， 指针类型被认为是字面类型（type literals），也就是说指针类型是通过已有类型组合而成的。</p>
 <h2 id="直接内存访问">直接内存访问</h2>
 <p>程序 2 展示了以变量的地址作为参数来调用函数，在 main 函数栈和 increment 函数栈之间共享 count 变量</p>
@@ -261,7 +261,7 @@ println(<span style="color:#e6db74">&#34;inc:\tValue Of[&#34;</span>, <span styl
 <span style="color:#a6e22e">count</span>:  <span style="color:#a6e22e">Value</span> <span style="color:#a6e22e">Of</span>[ <span style="color:#ae81ff">11</span> ]          <span style="color:#a6e22e">Addr</span> <span style="color:#a6e22e">Of</span>[ <span style="color:#ae81ff">0x10429fa4</span> ]
 </code></pre></div><p>可以看到，inc 指针变量的值和 count 变量的地址值相同，通过指针类型可以间接的访问栈空间外的内存，increment 函数通过指针修改了 inc 指针变量指向的值（也就是 count 变量），当 main 函数重新获得控制权后，就可以读取到 count 变量的新值。</p>
 <h2 id="指针变量并不特别">指针变量并不特别</h2>
-<p>指针变量和其他变量一样，并不特别，同样需要内存空间，同样存储这值。除了指针类型指向的类型和指针类型大小相同外，唯一让我们感到疑惑的是 <code>*</code> 字符，在函数 increment 中，<code>*</code> 表示操作符，表示指针解引用，而在函数声明中用来声明指针类型变量。如果可以愤青指针类型声明和指针解引用操作，应该就没那么困惑了。</p>
+<p>指针变量和其他变量一样，并不特别，同样需要内存空间，同样存储这值。除了指针类型指向的类型和指针类型大小相同外，唯一让我们感到疑惑的是 <code>*</code> 字符，在函数 increment 中，<code>*</code> 表示操作符，表示指针解引用，而在函数声明中用来声明指针类型变量。如果可以分清指针类型声明和指针解引用操作，应该就没那么困惑了。</p>
 <h2 id="总结">总结</h2>
 <p>这篇文章描述了指针背后的目的以及 golang 中栈和指针机制的工作方式，这是理解 golang 语言机制、设计哲学的第一步，也有助于写出一致的、可读性好的代码。</p>
 <p>从这篇文章我们学到了：</p>
@@ -314,7 +314,7 @@ println(<span style="color:#e6db74">&#34;inc:\tValue Of[&#34;</span>, <span styl
     <footer>
         <h6>Copyright © 2020 - sunpeng |
             Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
-            <a href="https://sunpe.github.ioindex.xml">Subscribe </a></h6>
+            <a href="https://sunpe.github.io/index.xml">Subscribe </a></h6>
     </footer>
 </div>
 <script src="https://sunpe.github.io/js/scripts.js"></script>

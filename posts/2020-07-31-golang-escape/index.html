@@ -12,7 +12,7 @@
 
 <meta name="baidu-site-verification" content="vWQN0uJLC2" />
 <meta property="og:title" content="golang语言机制之逃逸分析" />
-<meta property="og:description" content="Golang 中逃逸是只栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。
+<meta property="og:description" content="Golang 中逃逸是指栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。
 堆（Heaps） 堆是内存中除了栈之外用来存储变量值的区域，堆不能像栈一样自己释放空间，所以使用这块区域会比使用栈有更大的开销。其中开销主要用来进行垃圾回收（GC），当进行垃圾回收时，会消耗 25% 的 CPU，并且很可能会造成微秒级的「stop the world」延迟。而 GC 的好处是不需要再手动来分配和释放内存。Golang 中一部分变量值分配在堆上，而不在使用的变量值都需要清理掉，堆上的数据过多会给 GC 造成压力。
 共享栈（Sharing Stacks） Golang 不允许 goroutine 访问其他 goroutine 的栈空间，这是因为 goroutine 的栈空间增长或收缩时，栈空间会填充进新的内容。" />
 <meta property="og:type" content="article" />
@@ -138,7 +138,7 @@
 
 
 
-    <p>Golang 中逃逸是只栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。</p>
+    <p>Golang 中逃逸是指栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。</p>
 <h2 id="堆heaps">堆（Heaps）</h2>
 <p>堆是内存中除了栈之外用来存储变量值的区域，堆不能像栈一样自己释放空间，所以使用这块区域会比使用栈有更大的开销。其中开销主要用来进行垃圾回收（GC），当进行垃圾回收时，会消耗 25% 的 CPU，并且很可能会造成微秒级的「stop the world」延迟。而 GC 的好处是不需要再手动来分配和释放内存。Golang 中一部分变量值分配在堆上，而不在使用的变量值都需要清理掉，堆上的数据过多会给 GC 造成压力。</p>
 <h2 id="共享栈sharing-stacks">共享栈（Sharing Stacks）</h2>
@@ -314,7 +314,7 @@
 <li>仅仅在函数内对变量做取址操作，而未将指针传出</li>
 </ul>
 <h2 id="总结">总结</h2>
-<p>变量是否逃逸是有变量的分享方式决定的，只有当一个变量被共享了（通过变量的地址的方式共享），变量才会逃逸到堆上。变量逃逸到堆上会增加 GC 的压力，而通过变量副本的方式需要存储和维护不同的副本，每种方式都有好处和开销，关键的时要正确、一致且平衡的使用每种语义。</p>
+<p>变量是否逃逸是由变量的分享方式决定的，只有当一个变量被共享了（通过变量的地址的方式共享），变量才会逃逸到堆上。变量逃逸到堆上会增加 GC 的压力，而通过变量副本的方式需要存储和维护不同的副本，每种方式都有好处和开销，关键的是要正确、一致且平衡的使用每种语义。</p>
 <h2 id="参考资料">参考资料</h2>
 <ol>
 <li><a href="https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-escape-analysis.html">https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-escape-analysis.html</a></li>
@@ -351,7 +351,7 @@
     <footer>
         <h6>Copyright © 2020 - sunpeng |
             Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
-            <a href="https://sunpe.github.ioindex.xml">Subscribe </a></h6>
+            <a href="https://sunpe.github.io/index.xml">Subscribe </a></h6>
     </footer>
 </div>
 <script src="https://sunpe.github.io/js/scripts.js"></script>

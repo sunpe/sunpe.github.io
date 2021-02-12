@@ -15,7 +15,7 @@
 <meta property="og:description" content="stay foolish, stay hungry" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://sunpe.github.io/" />
-<meta property="og:updated_time" content="2020-12-12T22:00:00+08:00" />
+<meta property="og:updated_time" content="2021-02-12T22:00:00+08:00" />
 
 <meta name="generator" content="Hugo 0.75.1" />
     
@@ -92,6 +92,61 @@
     
 
     <li class="first" >
+      <h1><a href="https://sunpe.github.io/posts/2020-07-17-golang-stack-and-pointer/" title="golang语言机制之栈与指针">golang语言机制之栈与指针</a></h1>
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2020-07-17T22:00:00&#43;08:00">Jul 17, 2020</time>
+        </li>
+        
+        
+        <li>
+            Categories:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/categories/golang">golang</a>
+                
+            </em>
+        </li>
+        
+
+        
+        <li>
+            Tags:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/tags/golang">#golang</a>
+                
+            </em>
+        </li>
+        
+
+        <li>3 minutes read</li>
+    </ul>
+</aside>
+
+      
+<div class="featured_image">
+    <a href="https://sunpe.github.io/posts/2020-07-17-golang-stack-and-pointer/" title="golang语言机制之栈与指针">
+        <img src="">
+    </a>
+</div>
+
+
+      <p>学习和使用 golang，就不得不了解 golang 的指针。如果不能很好的理解指针，很难写出简单、整洁并高效的代码。
+帧边界（Frame Boundaries） 帧边界为函数执行提供了独有的内存空间、上下文（context）环境和一些流控制。函数可以通过帧边界指针直接访问帧边界的内存，或者间接访问帧边界外的内存（不能直接访问帧边界外的内存）。函数要间接访问帧边界外的内存，被访问的内存必须和函数共享。我们首先来了解一下帧边界建立的机制和限制。
+函数调用时，会在两个相关的帧边界间进行切换，从调用函数切换到被调用函数，如果函数调用时需要传递参数，那么这些参数值也要传递到被调用函数的帧边界中。Go 语言中帧边界间的数据传递是按值（by value）传递的。
+按值传递的好处是可读性好，函数调用时传入的值就是函数真正接收到的值。按值传递又叫做 WYSIWYG（what you see is what you get）。在发生切换时，我们可以很清楚的了解函数调用将如何影响程序执行。
+程序 1 展示了函数调用按值传递。</p>
+      
+      <a href="https://sunpe.github.io/posts/2020-07-17-golang-stack-and-pointer/">Read more…</a>
+      
+    </li>
+    
+
+    <li >
       <h1><a href="https://sunpe.github.io/posts/2020-07-03-golang-channel/" title="理解Golang channel">理解Golang channel</a></h1>
       <aside>
     <ul>
@@ -598,7 +653,7 @@ GitHub Pages 是一项静态站点托管服务，直接从 GitHub 上的仓库�
     <footer>
         <h6>Copyright © 2020 - sunpeng |
             Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
-            <a href="https://sunpe.github.ioindex.xml">Subscribe </a></h6>
+            <a href="https://sunpe.github.io/index.xml">Subscribe </a></h6>
     </footer>
 </div>
 <script src="https://sunpe.github.io/js/scripts.js"></script>
