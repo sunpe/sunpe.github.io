@@ -15,7 +15,7 @@
 <meta property="og:description" content="stay foolish, stay hungry" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://sunpe.github.io/" />
-<meta property="og:updated_time" content="2021-02-12T22:00:00+08:00" />
+<meta property="og:updated_time" content="2021-02-16T22:00:00+08:00" />
 
 <meta name="generator" content="Hugo 0.75.1" />
     
@@ -92,6 +92,59 @@
     
 
     <li class="first" >
+      <h1><a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/" title="golang语言机制之逃逸分析">golang语言机制之逃逸分析</a></h1>
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2020-07-31T22:00:00&#43;08:00">Jul 31, 2020</time>
+        </li>
+        
+        
+        <li>
+            Categories:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/categories/golang">golang</a>
+                
+            </em>
+        </li>
+        
+
+        
+        <li>
+            Tags:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/tags/golang">#golang</a>
+                
+            </em>
+        </li>
+        
+
+        <li>3 minutes read</li>
+    </ul>
+</aside>
+
+      
+<div class="featured_image">
+    <a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/" title="golang语言机制之逃逸分析">
+        <img src="">
+    </a>
+</div>
+
+
+      <p>Golang 中逃逸是指栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。
+堆（Heaps） 堆是内存中除了栈之外用来存储变量值的区域，堆不能像栈一样自己释放空间，所以使用这块区域会比使用栈有更大的开销。其中开销主要用来进行垃圾回收（GC），当进行垃圾回收时，会消耗 25% 的 CPU，并且很可能会造成微秒级的「stop the world」延迟。而 GC 的好处是不需要再手动来分配和释放内存。Golang 中一部分变量值分配在堆上，而不在使用的变量值都需要清理掉，堆上的数据过多会给 GC 造成压力。
+共享栈（Sharing Stacks） Golang 不允许 goroutine 访问其他 goroutine 的栈空间，这是因为 goroutine 的栈空间增长或收缩时，栈空间会填充进新的内容。</p>
+      
+      <a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/">Read more…</a>
+      
+    </li>
+    
+
+    <li >
       <h1><a href="https://sunpe.github.io/posts/2020-07-17-golang-stack-and-pointer/" title="golang语言机制之栈与指针">golang语言机制之栈与指针</a></h1>
       <aside>
     <ul>
@@ -568,58 +621,6 @@ import ( &#34;container/list&#34; &#34;sync&#34; ) type Stack struct { sync.</p>
       
     </li>
     
-
-    <li >
-      <h1><a href="https://sunpe.github.io/posts/2020-02-29-build-blog-with-jekyll/" title="使用 Jekyll 和 Git Page 搭建个人博客">使用 Jekyll 和 Git Page 搭建个人博客</a></h1>
-      <aside>
-    <ul>
-        <li>
-            <time class="post-date" datetime="2020-02-29T22:00:00&#43;08:00">Feb 29, 2020</time>
-        </li>
-        
-        
-        <li>
-            Categories:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/categories/%E5%B7%A5%E5%85%B7">工具</a>
-                
-            </em>
-        </li>
-        
-
-        
-        <li>
-            Tags:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/tags/%E4%B8%AA%E4%BA%BA%E5%8D%9A%E5%AE%A2">#个人博客</a>
-                
-            </em>
-        </li>
-        
-
-        <li>One minute read</li>
-    </ul>
-</aside>
-
-      
-<div class="featured_image">
-    <a href="https://sunpe.github.io/posts/2020-02-29-build-blog-with-jekyll/" title="使用 Jekyll 和 Git Page 搭建个人博客">
-        <img src="">
-    </a>
-</div>
-
-
-      <p>jekyll 是一个简单的静态网站生成器，可以将 markdown 文档或 html 文档转换成一个完整的可发布的静态网站。并且内置 GitHub Pages 支持。
-GitHub Pages 是一项静态站点托管服务，直接从 GitHub 上的仓库获取 HTML、CSS 和 JavaScript 文件，可以通过构建过程运行文件，发布网站。目前 github 支持 3 种类型的 GitHub Pages 站点：project，user 和 organization，具体可以参考github的帮助文档。</p>
-      
-      <a href="https://sunpe.github.io/posts/2020-02-29-build-blog-with-jekyll/">Read more…</a>
-      
-    </li>
-    
   </ul>
 </section>
 
@@ -637,11 +638,14 @@ GitHub Pages 是一项静态站点托管服务，直接从 GitHub 上的仓库�
   <li class="page-item active">
     <a class="page-link" href="https://sunpe.github.io/page/2/">2</a>
   </li>
-  <li class="page-item disabled">
-    <a  class="page-link" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
+  <li class="page-item">
+    <a class="page-link" href="https://sunpe.github.io/page/3/">3</a>
   </li>
   <li class="page-item">
-    <a href="https://sunpe.github.io/page/2/" class="page-link" aria-label="Last"><span aria-hidden="true">&raquo;&raquo;</span></a>
+    <a href="https://sunpe.github.io/page/3/" class="page-link" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
+  </li>
+  <li class="page-item">
+    <a href="https://sunpe.github.io/page/3/" class="page-link" aria-label="Last"><span aria-hidden="true">&raquo;&raquo;</span></a>
   </li>
 </ul>
 

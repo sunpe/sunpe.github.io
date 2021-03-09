@@ -15,7 +15,7 @@
 <meta property="og:description" content="stay foolish, stay hungry" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://sunpe.github.io/" />
-<meta property="og:updated_time" content="2021-02-12T22:00:00+08:00" />
+<meta property="og:updated_time" content="2021-02-16T22:00:00+08:00" />
 
 <meta name="generator" content="Hugo 0.75.1" />
     
@@ -92,7 +92,60 @@
     
 
     <li class="first" >
-      <h1><a href="https://sunpe.github.io/posts/2021-02-12-guozijian/" title="大年初一北京国子监">大年初一北京国子监</a></h1>
+      <h1><a href="https://sunpe.github.io/posts/2021-02-16-forbidden-city/" title="大年初五--北京故宫">大年初五--北京故宫</a></h1>
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2021-02-16T22:00:00&#43;08:00">Feb 16, 2021</time>
+        </li>
+        
+        
+        <li>
+            Categories:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/categories/%E6%B8%B8%E8%AE%B0">游记</a>
+                
+            </em>
+        </li>
+        
+
+        
+        <li>
+            Tags:
+            <em>
+                
+                    
+                    <a href="https://sunpe.github.io/tags/%E6%B8%B8%E8%AE%B0">#游记</a>
+                
+            </em>
+        </li>
+        
+
+        <li>One minute read</li>
+    </ul>
+</aside>
+
+      
+<div class="featured_image">
+    <a href="https://sunpe.github.io/posts/2021-02-16-forbidden-city/" title="大年初五--北京故宫">
+        <img src="">
+    </a>
+</div>
+
+
+      <p>故宫博物院又叫「紫禁城」，是明清两代的皇宫，总共有 24 位皇帝居住过，始建于永乐四年（1406 年），建成于永乐十八年（1420 年），占地面积 72 万平方米。
+大年初五天气还是有些冷的，今天开设了挺多的展览，看过「景仁宫」的「御瓷新见」展览，展出了景德镇的青花瓷和斗彩青花瓷。
+还有在另外一个展览的最长的「算盘」，有 117 位，比计算机中的 64 位整形还要长。
+到了下午闭馆前的一段时间，趁着人少拍了故宫的主体建筑。告诉大家一个小的摄影知识，想拍人少时候的故宫，可以在闭馆前半小时去拍摄。
+从「神武门」出来之后，就来到了故宫的后面，这时候天色已晚。春节期间，角楼、神武门会被射灯打亮，可以稍等片刻，拍摄角楼。也可以去景山公园，在景山上俯览故宫。</p>
+      
+    </li>
+    
+
+    <li >
+      <h1><a href="https://sunpe.github.io/posts/2021-02-12-guozijian/" title="大年初一--北京国子监">大年初一--北京国子监</a></h1>
       <aside>
     <ul>
         <li>
@@ -129,7 +182,7 @@
 
       
 <div class="featured_image">
-    <a href="https://sunpe.github.io/posts/2021-02-12-guozijian/" title="大年初一北京国子监">
+    <a href="https://sunpe.github.io/posts/2021-02-12-guozijian/" title="大年初一--北京国子监">
         <img src="">
     </a>
 </div>
@@ -584,59 +637,6 @@ Input: abcelvisaElvisabcelviseelvisaelvisaabeeeelvise l v i saa bb e l v i saa e
       
     </li>
     
-
-    <li >
-      <h1><a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/" title="golang语言机制之逃逸分析">golang语言机制之逃逸分析</a></h1>
-      <aside>
-    <ul>
-        <li>
-            <time class="post-date" datetime="2020-07-31T22:00:00&#43;08:00">Jul 31, 2020</time>
-        </li>
-        
-        
-        <li>
-            Categories:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/categories/golang">golang</a>
-                
-            </em>
-        </li>
-        
-
-        
-        <li>
-            Tags:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/tags/golang">#golang</a>
-                
-            </em>
-        </li>
-        
-
-        <li>3 minutes read</li>
-    </ul>
-</aside>
-
-      
-<div class="featured_image">
-    <a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/" title="golang语言机制之逃逸分析">
-        <img src="">
-    </a>
-</div>
-
-
-      <p>Golang 中逃逸是指栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。
-堆（Heaps） 堆是内存中除了栈之外用来存储变量值的区域，堆不能像栈一样自己释放空间，所以使用这块区域会比使用栈有更大的开销。其中开销主要用来进行垃圾回收（GC），当进行垃圾回收时，会消耗 25% 的 CPU，并且很可能会造成微秒级的「stop the world」延迟。而 GC 的好处是不需要再手动来分配和释放内存。Golang 中一部分变量值分配在堆上，而不在使用的变量值都需要清理掉，堆上的数据过多会给 GC 造成压力。
-共享栈（Sharing Stacks） Golang 不允许 goroutine 访问其他 goroutine 的栈空间，这是因为 goroutine 的栈空间增长或收缩时，栈空间会填充进新的内容。</p>
-      
-      <a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/">Read more…</a>
-      
-    </li>
-    
   </ul>
 </section>
 
@@ -655,10 +655,13 @@ Input: abcelvisaElvisabcelviseelvisaelvisaabeeeelvise l v i saa bb e l v i saa e
     <a class="page-link" href="https://sunpe.github.io/page/2/">2</a>
   </li>
   <li class="page-item">
+    <a class="page-link" href="https://sunpe.github.io/page/3/">3</a>
+  </li>
+  <li class="page-item">
     <a href="https://sunpe.github.io/page/2/" class="page-link" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
   </li>
   <li class="page-item">
-    <a href="https://sunpe.github.io/page/2/" class="page-link" aria-label="Last"><span aria-hidden="true">&raquo;&raquo;</span></a>
+    <a href="https://sunpe.github.io/page/3/" class="page-link" aria-label="Last"><span aria-hidden="true">&raquo;&raquo;</span></a>
   </li>
 </ul>
 
