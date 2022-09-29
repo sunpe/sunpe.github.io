@@ -1,0 +1,132 @@
+<!doctype html><html lang=en><head><title>spark 3.1.2 context异常关闭问题排查 - hello world</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="stay foolish, stay hungry"><meta name=author content="sunpeng"><meta name=baidu-site-verification content="vWQN0uJLC2"><meta property="og:title" content="spark 3.1.2 context异常关闭问题排查"><meta property="og:description" content="前段时间，基于spark和spring boot开发了一个web服务，将 spark session 注册为spring的bean，代码如下所示。"><meta property="og:type" content="article"><meta property="og:url" content="https://sunpe.github.io/posts/2021-07-01-spark-context/"><meta property="article:section" content="posts"><meta property="article:published_time" content="2021-07-01T22:00:00+08:00"><meta property="article:modified_time" content="2021-07-01T22:00:00+08:00"><meta name=generator content="Hugo 0.104.1"><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin=anonymous><link rel=stylesheet href=https://sunpe.github.io/fontawesome/css/all.min.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda"><link rel=stylesheet type=text/css href=https://sunpe.github.io/css/styles.css></head><body><div id=container><header><h1><a href=https://sunpe.github.io/>hello world</a></h1><ul id=social-media></ul><p><em>stay foolish, stay hungry</em></p></header><nav><ul><li><a href=https://sunpe.github.io/><i class="fa-li fa fa-lg"></i><span>Home</span></a></li><li><a href=https://sunpe.github.io/posts/><i class="fa-li fa fa-lg"></i><span>Posts</span></a></li><li><a href=https://sunpe.github.io/tags/><i class="fa-li fa fa-lg"></i><span>Tags</span></a></li><li><a href=https://sunpe.github.io/categories/><i class="fa-li fa fa-lg"></i><span>Categories</span></a></li><li><a href=https://sunpe.github.io/about/><i class="fa-li fa fa-lg"></i><span>About</span></a></li></ul></nav><main><article><h1>spark 3.1.2 context异常关闭问题排查</h1><aside><ul><li><time class=post-date datetime=2021-07-01T22:00:00+08:00>Jul 1, 2021</time></li><li>Categories:
+<em><a href=https://sunpe.github.io/categories/%E5%A4%A7%E6%95%B0%E6%8D%AE>大数据</a></em></li><li>Tags:
+<em><a href=https://sunpe.github.io/tags/%E5%A4%A7%E6%95%B0%E6%8D%AE>#大数据</a></em></li><li>5 minutes read</li></ul></aside><div class=featured_image><a href=https://sunpe.github.io/posts/2021-07-01-spark-context/ title="spark 3.1.2 context异常关闭问题排查"><img src></a></div><p>前段时间，基于spark和spring boot开发了一个web服务，将 spark session 注册为spring的bean，代码如下所示。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#a6e22e>@Bean</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>@ConditionalOnMissingBean</span><span style=color:#f92672>(</span>SparkSession<span style=color:#f92672>.</span><span style=color:#a6e22e>class</span><span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> SparkSession <span style=color:#a6e22e>sparkSession</span><span style=color:#f92672>(</span>SparkConf conf<span style=color:#f92672>)</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> SparkSession<span style=color:#f92672>.</span><span style=color:#a6e22e>builder</span><span style=color:#f92672>()</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>.</span><span style=color:#a6e22e>enableHiveSupport</span><span style=color:#f92672>()</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>.</span><span style=color:#a6e22e>config</span><span style=color:#f92672>(</span>conf<span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>.</span><span style=color:#a6e22e>getOrCreate</span><span style=color:#f92672>();</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>}</span>
+</span></span></code></pre></div><p>然而升级spark到3.1.2版本之后，服务启动之后，spark context就会关闭，而退回3.0.2版本后就没有这问题。基于3.1.2版本 spark 的启动日志如下所示：</p><pre tabindex=0><code>  .   ____          _            __ _ _
+ /\\ / ___&#39;_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | &#39;_ | &#39;_| | &#39;_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  &#39;  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v2.5.2)
+
+...
+21/07/01 15:05:10 INFO YarnClientSchedulerBackend: Application application_1619358582322_6529891 has started running.
+21/07/01 15:05:10 INFO Utils: Successfully started service &#39;org.apache.spark.network.netty.NettyBlockTransferService&#39; on port 40461.
+...
+21/07/01 15:05:10 INFO SaslDataTransferClient: SASL encryption trust check: localHostTrusted = false, remoteHostTrusted = false
+21/07/01 15:05:10 INFO Utils: Using initial executors = 1, max of spark.dynamicAllocation.initialExecutors, spark.dynamicAllocation.minExecutors and spark.executor.instances
+21/07/01 15:05:10 INFO YarnSchedulerBackend$YarnSchedulerEndpoint: ApplicationMaster registered as NettyRpcEndpointRef(spark-client://YarnAM)
+21/07/01 15:05:11 INFO YarnClientSchedulerBackend: SchedulerBackend is ready for scheduling beginning after waiting maxRegisteredResourcesWaitingTime: 30000000000(ns)
+21/07/01 15:05:11 INFO WelcomePageHandlerMapping: Adding welcome page template: index
+21/07/01 15:05:12 INFO Http11NioProtocol: Starting ProtocolHandler [&#34;http-nio-9000&#34;]
+21/07/01 15:05:12 INFO TomcatWebServer: Tomcat started on port(s): 9000 (http) with context path &#39;&#39;
+21/07/01 15:05:12 INFO SpringApplication: Started application in 2939.592 seconds (JVM running for 2942.937)
+21/07/01 15:05:12 INFO AbstractConnector: Stopped Spark@23cd4246{HTTP/1.1, (http/1.1)}{0.0.0.0:4040}
+21/07/01 15:05:12 INFO SparkUI: Stopped Spark web UI at http://xxxxxxxxx:4040
+21/07/01 15:05:12 INFO YarnClientSchedulerBackend: Interrupting monitor thread
+21/07/01 15:05:12 INFO YarnClientSchedulerBackend: Shutting down all executors
+21/07/01 15:05:12 INFO YarnSchedulerBackend$YarnDriverEndpoint: Asking each executor to shut down
+21/07/01 15:05:12 INFO YarnClientSchedulerBackend: YARN client scheduler backend Stopped
+21/07/01 15:05:12 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+21/07/01 15:05:13 INFO MemoryStore: MemoryStore cleared
+21/07/01 15:05:13 INFO BlockManager: BlockManager stopped
+21/07/01 15:05:13 INFO BlockManagerMaster: BlockManagerMaster stopped
+21/07/01 15:05:13 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+21/07/01 15:05:13 INFO SparkContext: Successfully stopped SparkContext
+</code></pre><p>查看了3.1.2版本的提交历史，发现问题是由于该 pr <a href=https://github.com/apache/spark/commit/c625eb4f9f970108d93bf3342c7ccb7ec873dc27>c625eb4</a>导致的，该pr是解决<a href=https://issues.apache.org/jira/browse/SPARK-34674>SPARK-34674</a>问题。该pr在 core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala 代码的 955 行添加了<code>SparkContext.getActive.foreach(_.stop())</code>代码。为了验证猜想，修改源码，并重新打包。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#66d9ef>try</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    logInfo<span style=color:#f92672>(</span><span style=color:#e6db74>&#34;## app start &#34;</span><span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>    app<span style=color:#f92672>.</span><span style=color:#a6e22e>start</span><span style=color:#f92672>(</span>childArgs<span style=color:#f92672>.</span><span style=color:#a6e22e>toArray</span><span style=color:#f92672>,</span> sparkConf<span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>    logInfo<span style=color:#f92672>(</span><span style=color:#e6db74>&#34;## app start over &#34;</span><span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>}</span> <span style=color:#66d9ef>catch</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>case</span> t<span style=color:#f92672>:</span> Throwable <span style=color:#f92672>=&gt;</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>throw</span> findCause<span style=color:#f92672>(</span>t<span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>}</span> <span style=color:#66d9ef>finally</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    logInfo<span style=color:#f92672>(</span><span style=color:#e6db74>&#34;## finally clean spark context &#34;</span><span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#f92672>(!</span>isShell<span style=color:#f92672>(</span>args<span style=color:#f92672>.</span><span style=color:#a6e22e>primaryResource</span><span style=color:#f92672>)</span> <span style=color:#f92672>&amp;&amp;</span> <span style=color:#f92672>!</span>isSqlShell<span style=color:#f92672>(</span>args<span style=color:#f92672>.</span><span style=color:#a6e22e>mainClass</span><span style=color:#f92672>)</span> <span style=color:#f92672>&amp;&amp;</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>!</span>isThriftServer<span style=color:#f92672>(</span>args<span style=color:#f92672>.</span><span style=color:#a6e22e>mainClass</span><span style=color:#f92672>))</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>try</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    SparkContext<span style=color:#f92672>.</span><span style=color:#a6e22e>getActive</span><span style=color:#f92672>.</span><span style=color:#a6e22e>foreach</span><span style=color:#f92672>(</span>_<span style=color:#f92672>.</span><span style=color:#a6e22e>stop</span><span style=color:#f92672>())</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>}</span> <span style=color:#66d9ef>catch</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>case</span> e<span style=color:#f92672>:</span> Throwable <span style=color:#f92672>=&gt;</span> logError<span style=color:#f92672>(</span>s<span style=color:#e6db74>&#34;Failed to close SparkContext: $e&#34;</span><span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>}</span>
+</span></span></code></pre></div><p>app启动日志如下。</p><pre tabindex=0><code>## app start
+
+  .   ____          _            __ _ _
+ /\\ / ___&#39;_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | &#39;_ | &#39;_| | &#39;_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  &#39;  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v2.5.2)
+
+...
+21/07/01 15:05:10 INFO YarnClientSchedulerBackend: Application application_1619358582322_6529891 has started running.
+21/07/01 15:05:10 INFO Utils: Successfully started service &#39;org.apache.spark.network.netty.NettyBlockTransferService&#39; on port 40461.
+...
+21/07/01 15:05:10 INFO SaslDataTransferClient: SASL encryption trust check: localHostTrusted = false, remoteHostTrusted = false
+21/07/01 15:05:10 INFO Utils: Using initial executors = 1, max of spark.dynamicAllocation.initialExecutors, spark.dynamicAllocation.minExecutors and spark.executor.instances
+21/07/01 15:05:10 INFO YarnSchedulerBackend$YarnSchedulerEndpoint: ApplicationMaster registered as NettyRpcEndpointRef(spark-client://YarnAM)
+21/07/01 15:05:11 INFO YarnClientSchedulerBackend: SchedulerBackend is ready for scheduling beginning after waiting maxRegisteredResourcesWaitingTime: 30000000000(ns)
+21/07/01 15:05:11 INFO WelcomePageHandlerMapping: Adding welcome page template: index
+21/07/01 15:05:12 INFO Http11NioProtocol: Starting ProtocolHandler [&#34;http-nio-9000&#34;]
+21/07/01 15:05:12 INFO TomcatWebServer: Tomcat started on port(s): 9000 (http) with context path &#39;&#39;
+21/07/01 15:05:12 INFO SpringApplication: Started application in 2939.592 seconds (JVM running for 2942.937)
+## app start over
+## finally clean spark context
+21/07/01 15:05:12 INFO AbstractConnector: Stopped Spark@23cd4246{HTTP/1.1, (http/1.1)}{0.0.0.0:4040}
+21/07/01 15:05:12 INFO SparkUI: Stopped Spark web UI at http://xxxxxxxxx:4040
+21/07/01 15:05:12 INFO YarnClientSchedulerBackend: Interrupting monitor thread
+21/07/01 15:05:12 INFO YarnClientSchedulerBackend: Shutting down all executors
+21/07/01 15:05:12 INFO YarnSchedulerBackend$YarnDriverEndpoint: Asking each executor to shut down
+21/07/01 15:05:12 INFO YarnClientSchedulerBackend: YARN client scheduler backend Stopped
+21/07/01 15:05:12 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+21/07/01 15:05:13 INFO MemoryStore: MemoryStore cleared
+21/07/01 15:05:13 INFO BlockManager: BlockManager stopped
+21/07/01 15:05:13 INFO BlockManagerMaster: BlockManagerMaster stopped
+21/07/01 15:05:13 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+21/07/01 15:05:13 INFO SparkContext: Successfully stopped SparkContext
+</code></pre><p>修改该段代码，再重新打包测试，问题解决。启动日志如下所示。</p><pre tabindex=0><code>## app start
+
+  .   ____          _            __ _ _
+ /\\ / ___&#39;_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | &#39;_ | &#39;_| | &#39;_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  &#39;  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v2.5.2)
+
+ ....
+21/07/01 16:05:51 INFO YarnClientSchedulerBackend: Application application_1619358582322_6532933 has started running.
+21/07/01 16:05:51 INFO Utils: Successfully started service &#39;org.apache.spark.network.netty.NettyBlockTransferService&#39; on port 42549.
+21/07/01 16:05:51 INFO NettyBlockTransferService: Server created on xxxxxxxxx:42549
+21/07/01 16:05:51 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+21/07/01 16:05:51 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, xxxxxxx, 42549, None)
+21/07/01 16:05:51 INFO BlockManagerMasterEndpoint: Registering block manager xxxxxxxxx:42549 with 5.2 GiB RAM, BlockManagerId(driver, xxxxxxx, 42549, None)
+21/07/01 16:05:51 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, xxxxxxxx, 42549, None)
+21/07/01 16:05:51 INFO BlockManager: external shuffle service port = 7337
+21/07/01 16:05:51 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, xxxxxxxx, 42549, None)
+21/07/01 16:05:51 INFO ServerInfo: Adding filter to /metrics/json: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+21/07/01 16:05:51 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@60510791{/metrics/json,null,AVAILABLE,@Spark}
+21/07/01 16:05:52 INFO YarnSchedulerBackend$YarnSchedulerEndpoint: ApplicationMaster registered as NettyRpcEndpointRef(spark-client://YarnAM)
+21/07/01 16:05:54 INFO Utils: Using initial executors = 1, max of spark.dynamicAllocation.initialExecutors, spark.dynamicAllocation.minExecutors and spark.executor.instances
+21/07/01 16:05:54 INFO YarnClientSchedulerBackend: SchedulerBackend is ready for scheduling beginning after waiting maxRegisteredResourcesWaitingTime: 30000000000(ns)
+21/07/01 16:05:55 INFO WelcomePageHandlerMapping: Adding welcome page template: index
+21/07/01 16:05:55 INFO Http11NioProtocol: Starting ProtocolHandler [&#34;http-nio-9000&#34;]
+21/07/01 16:05:55 INFO TomcatWebServer: Tomcat started on port(s): 9000 (http) with context path &#39;&#39;
+21/07/01 16:05:55 INFO SpringApplication: Started application in 848.362 seconds (JVM running for 851.343)
+## app start over
+## finally clean spark context
+</code></pre><p>后续和公司内 spark 专家沟通过该问题，专家给出的建议是添加一个启动参数来控制 main 函数之后是否需要关闭 context。最终提交了该 pr <a href=https://github.com/apache/spark/pull/33154>33154</a> 到spark社区。不过我提交的 pr 没有被采纳，该问题社区的最终修复方案是 <a href=https://github.com/apache/spark/commit/fd3e9ce0b9ee09c7dce9f2e029fe96eac51eab96>fd3e9ce</a> 。</p></article><section class=post-nav><ul><li><a href=https://sunpe.github.io/posts/2021-03-12-tcp/><i class="fa fa-chevron-circle-left"></i> TCP协议详解</a></li><li><a href=https://sunpe.github.io/posts/2021-08-17-golang-gzip-troubleshooting/>golang gzip 使用过程中问题排查 <i class="fa fa-chevron-circle-right"></i></a></li></ul></section></main><footer><ul><li><h6>Copyright © 2022 - sunpeng |
+Rendered by <a href=https://gohugo.io title=Hugo>Hugo</a> |
+<a href=https://sunpe.github.ioindex.xml>Subscribe</a></h6></li></ul></footer></div><script src=https://sunpe.github.io/js/scripts.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga("create","UA-161915530-1","auto"),ga("send","pageview"))</script><script async src=https://www.google-analytics.com/analytics.js></script>
+<script id=baidu_analytics>var _hmt=_hmt||[];(function(){if(window.location.hostname==="localhost")return;var t,e=document.createElement("script");e.async=!0,e.src="https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script><script id=baidu_push>(function(){if(window.location.hostname==="localhost")return;var t,n,e=document.createElement("script");e.async=!0,n=window.location.protocol.split(":")[0],n==="https"?e.src="https://zz.bdstatic.com/linksubmit/push.js":e.src="http://push.zhanzhang.baidu.com/push.js",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script></body></html>

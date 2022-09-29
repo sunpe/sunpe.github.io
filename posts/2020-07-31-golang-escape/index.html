@@ -1,401 +1,136 @@
-<!doctype html>
-
-<html lang="en">
-
-<head>
-  <title>golang语言机制之逃逸分析 - hello world</title>
-  <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="stay foolish, stay hungry" />
-<meta name="author" content="sunpeng" />
-
-
-<meta name="baidu-site-verification" content="vWQN0uJLC2" />
-<meta property="og:title" content="golang语言机制之逃逸分析" />
-<meta property="og:description" content="Golang 中逃逸是指栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。
-堆（Heaps） 堆是内存中除了栈之外用来存储变量值的区域，堆不能像栈一样自己释放空间，所以使用这块区域会比使用栈有更大的开销。其中开销主要用来进行垃圾回收（GC），当进行垃圾回收时，会消耗 25% 的 CPU，并且很可能会造成微秒级的「stop the world」延迟。而 GC 的好处是不需要再手动来分配和释放内存。Golang 中一部分变量值分配在堆上，而不在使用的变量值都需要清理掉，堆上的数据过多会给 GC 造成压力。
-共享栈（Sharing Stacks） Golang 不允许 goroutine 访问其他 goroutine 的栈空间，这是因为 goroutine 的栈空间增长或收缩时，栈空间会填充进新的内容。" />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://sunpe.github.io/posts/2020-07-31-golang-escape/" />
-<meta property="article:published_time" content="2020-07-31T22:00:00+08:00" />
-<meta property="article:modified_time" content="2020-07-31T22:00:00+08:00" />
-
-<meta name="generator" content="Hugo 0.75.1" />
-    
-
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://sunpe.github.io/fontawesome/css/all.min.css" />
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
-  
-  
-  <link rel="stylesheet" type="text/css" href="https://sunpe.github.io/css/styles.css" /></head>
-
-<body>
-  <div id="container">
-    <header>
-      <h1>
-        <a href="https://sunpe.github.io/">hello world</a>
-      </h1>
-
-      <ul id="social-media">
-      </ul>
-      
-      <p><em>stay foolish, stay hungry</em></p>
-      
-    </header>
-
-    
-<nav>
-    <ul>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/">
-                <i class="fa-li fa  fa-lg"></i><span>Home</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/posts/">
-                <i class="fa-li fa  fa-lg"></i><span>Posts</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/tags/">
-                <i class="fa-li fa  fa-lg"></i><span>Tags</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/categories/">
-                <i class="fa-li fa  fa-lg"></i><span>Categories</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/about/">
-                <i class="fa-li fa  fa-lg"></i><span>About</span>
-            </a>
-        </li>
-        
-    </ul>
-</nav>
-
-
-    <main>
-
-
-
-
-<article>
-
-    <h1>golang语言机制之逃逸分析</h1>
-
-    
-      <aside>
-    <ul>
-        <li>
-            <time class="post-date" datetime="2020-07-31T22:00:00&#43;08:00">Jul 31, 2020</time>
-        </li>
-        
-        
-        <li>
-            Categories:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/categories/golang">golang</a>
-                
-            </em>
-        </li>
-        
-
-        
-        <li>
-            Tags:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/tags/golang">#golang</a>
-                
-            </em>
-        </li>
-        
-
-        <li>3 minutes read</li>
-    </ul>
-</aside>
-
-    
-
-    
-<div class="featured_image">
-    <a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/" title="golang语言机制之逃逸分析">
-        <img src="">
-    </a>
-</div>
-
-
-
-    <p>Golang 中逃逸是指栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。</p>
-<h2 id="堆heaps">堆（Heaps）</h2>
-<p>堆是内存中除了栈之外用来存储变量值的区域，堆不能像栈一样自己释放空间，所以使用这块区域会比使用栈有更大的开销。其中开销主要用来进行垃圾回收（GC），当进行垃圾回收时，会消耗 25% 的 CPU，并且很可能会造成微秒级的「stop the world」延迟。而 GC 的好处是不需要再手动来分配和释放内存。Golang 中一部分变量值分配在堆上，而不在使用的变量值都需要清理掉，堆上的数据过多会给 GC 造成压力。</p>
-<h2 id="共享栈sharing-stacks">共享栈（Sharing Stacks）</h2>
-<p>Golang 不允许 goroutine 访问其他 goroutine 的栈空间，这是因为 goroutine 的栈空间增长或收缩时，栈空间会填充进新的内容。</p>
-<p>程序1展示了栈被替换好几次的例子。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序1
-</span><span style="color:#75715e">// All material is licensed under the Apache License Version 2.0, January 2004
-</span><span style="color:#75715e">// http://www.apache.org/licenses/LICENSE-2.0
-</span><span style="color:#75715e"></span>
-<span style="color:#75715e">// Sample program to show how stacks grow/change.
-</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
-
-<span style="color:#75715e">// Number of elements to grow each stack frame.
-</span><span style="color:#75715e">// Run with 10 and then with 1024
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">size</span> = <span style="color:#ae81ff">1024</span>
-
-<span style="color:#75715e">// main is the entry point for the application.
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
-    <span style="color:#a6e22e">s</span> <span style="color:#f92672">:=</span> <span style="color:#e6db74">&#34;HELLO&#34;</span>
-    <span style="color:#a6e22e">stackCopy</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">s</span>, <span style="color:#ae81ff">0</span>, [<span style="color:#a6e22e">size</span>]<span style="color:#66d9ef">int</span>{})
-}
-
-<span style="color:#75715e">// stackCopy recursively runs increasing the size
-</span><span style="color:#75715e">// of the stack.
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">stackCopy</span>(<span style="color:#a6e22e">s</span> <span style="color:#f92672">*</span><span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">c</span> <span style="color:#66d9ef">int</span>, <span style="color:#a6e22e">a</span> [<span style="color:#a6e22e">size</span>]<span style="color:#66d9ef">int</span>) {
-    println(<span style="color:#a6e22e">c</span>, <span style="color:#a6e22e">s</span>, <span style="color:#f92672">*</span><span style="color:#a6e22e">s</span>)
-
-    <span style="color:#a6e22e">c</span><span style="color:#f92672">++</span>
-    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">c</span> <span style="color:#f92672">==</span> <span style="color:#ae81ff">10</span> {
-        <span style="color:#66d9ef">return</span>
-    }
-
-    <span style="color:#a6e22e">stackCopy</span>(<span style="color:#a6e22e">s</span>, <span style="color:#a6e22e">c</span>, <span style="color:#a6e22e">a</span>)
-}
-</code></pre></div><p>输出结果的第 2 和第 6 行，会看到 <code>main</code> 函数栈的 <code>s</code> 变量地址值改变了两次。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0xc00006ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0xc00006ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">2</span> <span style="color:#ae81ff">0xc00007ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">3</span> <span style="color:#ae81ff">0xc00007ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">4</span> <span style="color:#ae81ff">0xc00007ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">5</span> <span style="color:#ae81ff">0xc00007ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">6</span> <span style="color:#ae81ff">0xc00011ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">7</span> <span style="color:#ae81ff">0xc00011ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">8</span> <span style="color:#ae81ff">0xc00011ff68</span> <span style="color:#a6e22e">HELLO</span>
-<span style="color:#ae81ff">9</span> <span style="color:#ae81ff">0xc00011ff68</span> <span style="color:#a6e22e">HELLO</span>
-</code></pre></div><h2 id="逃逸机制escape-mechanics">逃逸机制（Escape Mechanics）</h2>
-<p>如果变量值需要在函数栈帧外访问，都会将该变量值重新分配到堆上，这就是逃逸分析算法要做的事情，确保对任何变量值的访问始终是准确、一致和高效的。</p>
-<p>让我们通过程序 2 来了解逃逸分析。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序2
-</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
-
-<span style="color:#66d9ef">type</span> <span style="color:#a6e22e">user</span> <span style="color:#66d9ef">struct</span> {
-    <span style="color:#a6e22e">name</span>  <span style="color:#66d9ef">string</span>
-    <span style="color:#a6e22e">email</span> <span style="color:#66d9ef">string</span>
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
-    <span style="color:#a6e22e">u1</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">createUserV1</span>()
-    <span style="color:#a6e22e">u2</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">createUserV2</span>()
-
-    println(<span style="color:#e6db74">&#34;u1&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u1</span>, <span style="color:#e6db74">&#34;u2&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u2</span>)
-}
-
-<span style="color:#75715e">//go:noinline
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">createUserV1</span>() <span style="color:#a6e22e">user</span> {
-    <span style="color:#a6e22e">u</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">user</span>{
-        <span style="color:#a6e22e">name</span>:  <span style="color:#e6db74">&#34;Bill&#34;</span>,
-        <span style="color:#a6e22e">email</span>: <span style="color:#e6db74">&#34;bill@ardanlabs.com&#34;</span>,
-    }
-
-    println(<span style="color:#e6db74">&#34;V1&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>)
-    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">u</span>
-}
-
-<span style="color:#75715e">//go:noinline
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">createUserV2</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">user</span> {
-    <span style="color:#a6e22e">u</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">user</span>{
-        <span style="color:#a6e22e">name</span>:  <span style="color:#e6db74">&#34;Bill&#34;</span>,
-        <span style="color:#a6e22e">email</span>: <span style="color:#e6db74">&#34;bill@ardanlabs.com&#34;</span>,
-    }
-
-    println(<span style="color:#e6db74">&#34;V2&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>)
-    <span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>
-}
-</code></pre></div><p>程序 2 中使用了 <code>[//go:noinline](//go:noinline)</code> 指令来阻止编译器使用内联代码优化，内联代码优化会将函数调用变成内联代码。程序 2 中有两个版本的 <code>createUserXX</code> 函数，<code>createUserV1()</code> 返回的是 <code>user</code> 变量的副本。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">createUserV1</span>() <span style="color:#a6e22e">user</span> {
-    <span style="color:#a6e22e">u</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">user</span>{
-        <span style="color:#a6e22e">name</span>:  <span style="color:#e6db74">&#34;Bill&#34;</span>,
-        <span style="color:#a6e22e">email</span>: <span style="color:#e6db74">&#34;bill@ardanlabs.com&#34;</span>,
-    }
-
-    println(<span style="color:#e6db74">&#34;V1&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>)
-    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">u</span>
-}
-</code></pre></div><p><code>createUserV1()</code> 函数返回之后，栈空间应该是图 1 这样的：</p>
-<p><img src="https://sunpe.github.io/images/golang_escape/1.png" alt="">
-图1</p>
-<p><code>createUserV2()</code> 函数返回的是 user 变量的指针，所以调用方收到的是 user 变量地址的副本：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">createUserV2</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">user</span> {
-    <span style="color:#a6e22e">u</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">user</span>{
-        <span style="color:#a6e22e">name</span>:  <span style="color:#e6db74">&#34;Bill&#34;</span>,
-        <span style="color:#a6e22e">email</span>: <span style="color:#e6db74">&#34;bill@ardanlabs.com&#34;</span>,
-    }
-
-    println(<span style="color:#e6db74">&#34;V2&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>)
-    <span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>
-}
-</code></pre></div><p>按《<a href="https://sunpe.github.io/posts/golang-stack-and-pointer/">Golang 语言机制之栈与指针</a>》一文，<code>createUserV2()</code> 函数返回后栈空间应该如图 2 所示：</p>
-<p><img src="https://sunpe.github.io/images/golang_escape/2.png" alt="">
-图2</p>
-<p>但是图 2 所示的栈空间有一个严重的问题，<code>main</code> 函数栈帧 <code>u2</code> 指向了无效的内存空间，这段地址空间在下一次函数调用时可能会被重新初始化。 这种情况下，编译器认为在 <code>createUserV2</code> 函数栈帧中构造 <code>user</code> 是不安全的，因此会改为在堆中构造 <code>user</code>，在程序 2 的执行到第 28 行开始构造 user 时就会在堆上构造。</p>
-<p><a href="https://sunpe.github.io/posts/golang-stack-and-pointer/">Golang 语言机制之栈与指针</a>一文指出，函数只能直接访问自己栈帧内的内存空间，或通过指针间接访问栈帧外的内存空间，所以访问逃逸到堆上的变量值也需要通过指针来间接访问。所以执行完 <code>createUserV2</code> 函数后栈空间应该开起来如图 3:</p>
-<p><img src="https://sunpe.github.io/images/golang_escape/3.png" alt="">
-图3</p>
-<p><code>createUserV2</code> 函数栈帧的变量 <code>u</code> 的值存储在堆上而不是在栈上，所以访问变量 <code>u</code> 的值也需要通过指针来间接访问。</p>
-<h2 id="可读性readability">可读性（Readability）</h2>
-<p><code>createUserV2</code> 函数先构建了 <code>user</code> 变量，然后再通过 <code>&amp;</code> 操作获取变量地址并返回。如果直接构造成指针，如程序 3 所示。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 3
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">createUserV2</span>() <span style="color:#f92672">*</span><span style="color:#a6e22e">user</span> {
-    <span style="color:#a6e22e">u</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">user</span>{
-        <span style="color:#a6e22e">name</span>:  <span style="color:#e6db74">&#34;Bill&#34;</span>,
-        <span style="color:#a6e22e">email</span>: <span style="color:#e6db74">&#34;bill@ardanlabs.com&#34;</span>,
-    }
-
-    println(<span style="color:#e6db74">&#34;V2&#34;</span>, <span style="color:#a6e22e">u</span>)
-    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">u</span>
-}
-</code></pre></div><p>如果我们只关注 <code>return</code>，程序 3 <code>return u</code>  告诉我们要返回给调用者的是 <code>u</code> 的副本，程序 2  <code>return &amp;u</code> 告诉我们返回给调用者的是 <code>u</code> 的地址值，并且变量 <code>u</code> 已经逃逸到堆上。所以，读代码时要记住，指针是为了共享变量，<code>&amp;</code> 操作符对应的单词是「sharing」，这样写有助于提高代码的可读性。</p>
-<p>来看一下程序 4 的例子。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 4
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">u</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">user</span>
-<span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">json</span>.<span style="color:#a6e22e">Unmarshal</span>([]byte(<span style="color:#a6e22e">r</span>), <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>)
-<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">u</span>, <span style="color:#a6e22e">err</span>
-</code></pre></div><p>第二行的 <code>json.Unmarshal</code> 第二个参数必须是指针类型，所以需要传递 <code>&amp;u</code> 作为参数。这段代码第一行创建了 user 的指针类型并初始化零值，第二行通过 <code>u</code> 的地址调用 <code>json.Unmarshal</code>，第三行和调用者共享 <code>u</code> 的副本。</p>
-<p>这段代码并不直观，可以稍作修改，得到程序5.</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 5
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">u</span> <span style="color:#a6e22e">user</span>
-<span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">json</span>.<span style="color:#a6e22e">Unmarshal</span>([]byte(<span style="color:#a6e22e">r</span>), <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>)
-<span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span>, <span style="color:#a6e22e">err</span>
-</code></pre></div><p>程序 5 的第一行创建了 user 变量并初始化零值，第二行通过 <code>u</code> 的地址调用 <code>json.Unmarshal</code>，第三行和调用者共享 <code>u</code>，比程序 4 更直观，返回 <code>&amp;u</code> 说明 <code>u</code> 会逃逸到堆上。</p>
-<p>如果需要和调用者共享变量值时，在构造值的时候使用值语义，利用 <code>&amp;</code> 操作符的可读性来明确值是被共享的。</p>
-<h2 id="编译器日志compiler-reporting">编译器日志（Compiler Reporting）</h2>
-<p>在构建时，可以通过编译器日志（Compiler Reporting）来查看编译器的逃逸分析，在 <code>go build</code> 指令后添加 <code>-gcflags</code> 指令和 <code>-m</code> 参数，就可以看到编译器日志：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#960050;background-color:#1e0010">$</span> <span style="color:#66d9ef">go</span> <span style="color:#a6e22e">build</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">gcflags</span> <span style="color:#e6db74">&#34;-m -m&#34;</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">16</span>: <span style="color:#a6e22e">cannot</span> <span style="color:#a6e22e">inline</span> <span style="color:#a6e22e">createUserV1</span>: <span style="color:#a6e22e">marked</span> <span style="color:#66d9ef">go</span>:<span style="color:#a6e22e">noinline</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">27</span>: <span style="color:#a6e22e">cannot</span> <span style="color:#a6e22e">inline</span> <span style="color:#a6e22e">createUserV2</span>: <span style="color:#a6e22e">marked</span> <span style="color:#66d9ef">go</span>:<span style="color:#a6e22e">noinline</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">8</span>: <span style="color:#a6e22e">cannot</span> <span style="color:#a6e22e">inline</span> <span style="color:#a6e22e">main</span>: <span style="color:#a6e22e">non</span><span style="color:#f92672">-</span><span style="color:#a6e22e">leaf</span> <span style="color:#a6e22e">function</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">22</span>: <span style="color:#a6e22e">createUserV1</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span> <span style="color:#a6e22e">does</span> <span style="color:#a6e22e">not</span> <span style="color:#a6e22e">escape</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">34</span>: <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span> <span style="color:#a6e22e">escapes</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">heap</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">34</span>:   <span style="color:#a6e22e">from</span> <span style="color:#960050;background-color:#1e0010">~</span><span style="color:#a6e22e">r0</span> (<span style="color:#66d9ef">return</span>) <span style="color:#a6e22e">at</span> .<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">34</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">31</span>: <span style="color:#a6e22e">moved</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">heap</span>: <span style="color:#a6e22e">u</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">33</span>: <span style="color:#a6e22e">createUserV2</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span> <span style="color:#a6e22e">does</span> <span style="color:#a6e22e">not</span> <span style="color:#a6e22e">escape</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">12</span>: <span style="color:#a6e22e">main</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u1</span> <span style="color:#a6e22e">does</span> <span style="color:#a6e22e">not</span> <span style="color:#a6e22e">escape</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">12</span>: <span style="color:#a6e22e">main</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u2</span> <span style="color:#a6e22e">does</span> <span style="color:#a6e22e">not</span> <span style="color:#a6e22e">escape</span>
-</code></pre></div><p>实际上可以使用 4 个 <code>-m</code>，但是超过 2 个控制台信息就很多，所以这里使用了 2 个 <code>-m</code>。</p>
-<p>可以看到日志里有了逃逸分析的日志。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">22</span>: <span style="color:#a6e22e">createUserV1</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span> <span style="color:#a6e22e">does</span> <span style="color:#a6e22e">not</span> <span style="color:#a6e22e">escape</span>
-</code></pre></div><p>通过日志，我们可以知道程序 2 第 22 行调用 <code>println</code> 函数时没有发生逃逸。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">34</span>: <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">u</span> <span style="color:#a6e22e">escapes</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">heap</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">34</span>:   <span style="color:#a6e22e">from</span> <span style="color:#960050;background-color:#1e0010">~</span><span style="color:#a6e22e">r0</span> (<span style="color:#66d9ef">return</span>) <span style="color:#a6e22e">at</span> .<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">34</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">main</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">31</span>: <span style="color:#a6e22e">moved</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">heap</span>: <span style="color:#a6e22e">u</span>
-</code></pre></div><p>这几行是说，第 31 行创建的 <code>u</code> 变量，因为第 34 行的 return 语句发生了逃逸。</p>
-<h2 id="变量逃逸情况总结">变量逃逸情况总结</h2>
-<p>总的来说，如果出现了以下三种情况，则必然发生逃逸：</p>
-<ul>
-<li>函数中new或字面量创建出的变量，将其指针作为函数返回值，则该变量一定发生逃逸（构造函数返回的指针变量一定逃逸）</li>
-<li>被已经逃逸的变量引用的指针，一定发生逃逸</li>
-<li>被指针类型的slice、map和chan引用的指针，一定发生逃逸</li>
-</ul>
-<p>而在以下两种情况下，则不会发生逃逸的情况：</p>
-<ul>
-<li>指针被未发生逃逸的变量引用</li>
-<li>仅仅在函数内对变量做取址操作，而未将指针传出</li>
-</ul>
-<h2 id="总结">总结</h2>
-<p>变量是否逃逸是由变量的分享方式决定的，只有当一个变量被共享了（通过变量的地址的方式共享），变量才会逃逸到堆上。变量逃逸到堆上会增加 GC 的压力，而通过变量副本的方式需要存储和维护不同的副本，每种方式都有好处和开销，关键的是要正确、一致且平衡的使用每种语义。</p>
-<h2 id="参考资料">参考资料</h2>
-<ol>
-<li><a href="https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-escape-analysis.html">https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-escape-analysis.html</a></li>
-</ol>
-
-
-</article>
-
-
-<section class="post-nav">
-    <ul>
-        
-        <li>
-            <a href="https://sunpe.github.io/posts/2020-07-17-golang-stack-and-pointer/"><i class="fa fa-chevron-circle-left"></i> golang语言机制之栈与指针</a>
-        </li>
-        
-        
-        <li>
-            <a href="https://sunpe.github.io/posts/2020-09-04-golang-memory-analyst/">golang 语言机制之内存剖析 <i class="fa fa-chevron-circle-right"></i> </a>
-        </li>
-        
-    </ul>
-</section>
-  
-    
-    
-  
-
-
-
-
-
-</main>
-    <footer>
-        <h6>Copyright © 2020 - sunpeng |
-            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
-            <a href="https://sunpe.github.io/index.xml">Subscribe </a></h6>
-    </footer>
-</div>
-<script src="https://sunpe.github.io/js/scripts.js"></script>
-
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-161915530-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-<script id="baidu_push">
-  (function(){
-    if (window.location.hostname === 'localhost') return;
-    var bp = document.createElement('script'); bp.async = true;
-    var curProtocol = window.location.protocol.split(':')[0];
-    if (curProtocol === 'https') {
-      bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
-    }
-    else {
-      bp.src = 'http://push.zhanzhang.baidu.com/push.js';
-    }
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(bp, s);
-  })();
-</script>
-</body>
-
-</html>
-
+<!doctype html><html lang=en><head><title>golang语言机制之逃逸分析 - hello world</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="stay foolish, stay hungry"><meta name=author content="sunpeng"><meta name=baidu-site-verification content="vWQN0uJLC2"><meta property="og:title" content="golang语言机制之逃逸分析"><meta property="og:description" content="Golang 中逃逸是只栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。"><meta property="og:type" content="article"><meta property="og:url" content="https://sunpe.github.io/posts/2020-07-31-golang-escape/"><meta property="article:section" content="posts"><meta property="article:published_time" content="2020-07-31T22:00:00+08:00"><meta property="article:modified_time" content="2020-07-31T22:00:00+08:00"><meta name=generator content="Hugo 0.104.1"><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin=anonymous><link rel=stylesheet href=https://sunpe.github.io/fontawesome/css/all.min.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda"><link rel=stylesheet type=text/css href=https://sunpe.github.io/css/styles.css></head><body><div id=container><header><h1><a href=https://sunpe.github.io/>hello world</a></h1><ul id=social-media></ul><p><em>stay foolish, stay hungry</em></p></header><nav><ul><li><a href=https://sunpe.github.io/><i class="fa-li fa fa-lg"></i><span>Home</span></a></li><li><a href=https://sunpe.github.io/posts/><i class="fa-li fa fa-lg"></i><span>Posts</span></a></li><li><a href=https://sunpe.github.io/tags/><i class="fa-li fa fa-lg"></i><span>Tags</span></a></li><li><a href=https://sunpe.github.io/categories/><i class="fa-li fa fa-lg"></i><span>Categories</span></a></li><li><a href=https://sunpe.github.io/about/><i class="fa-li fa fa-lg"></i><span>About</span></a></li></ul></nav><main><article><h1>golang语言机制之逃逸分析</h1><aside><ul><li><time class=post-date datetime=2020-07-31T22:00:00+08:00>Jul 31, 2020</time></li><li>Categories:
+<em><a href=https://sunpe.github.io/categories/golang>golang</a></em></li><li>Tags:
+<em><a href=https://sunpe.github.io/tags/golang>#golang</a></em></li><li>3 minutes read</li></ul></aside><div class=featured_image><a href=https://sunpe.github.io/posts/2020-07-31-golang-escape/ title=golang语言机制之逃逸分析><img src></a></div><p>Golang 中逃逸是只栈空间的变量逃逸到了堆空间，逃逸分析是编译器通过静态代码分析决定程序中变量存储位置的过程。代码中没有任何的关键词或者函数可以决定变量放置在栈空间还是堆空间，只能让编译器通过代码来决定变量值的存储位置。</p><h2 id=堆heaps>堆（Heaps）</h2><p>堆是内存中除了栈之外用来存储变量值的区域，堆不能像栈一样自己释放空间，所以使用这块区域会比使用栈有更大的开销。其中开销主要用来进行垃圾回收（GC），当进行垃圾回收时，会消耗 25% 的 CPU，并且很可能会造成微秒级的「stop the world」延迟。而 GC 的好处是不需要再手动来分配和释放内存。Golang 中一部分变量值分配在堆上，而不在使用的变量值都需要清理掉，堆上的数据过多会给 GC 造成压力。</p><h2 id=共享栈sharing-stacks>共享栈（Sharing Stacks）</h2><p>Golang 不允许 goroutine 访问其他 goroutine 的栈空间，这是因为 goroutine 的栈空间增长或收缩时，栈空间会填充进新的内容。</p><p>程序1展示了栈被替换好几次的例子。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序1
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// All material is licensed under the Apache License Version 2.0, January 2004
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// http://www.apache.org/licenses/LICENSE-2.0
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Sample program to show how stacks grow/change.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Number of elements to grow each stack frame.
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// Run with 10 and then with 1024
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>const</span> <span style=color:#a6e22e>size</span> = <span style=color:#ae81ff>1024</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// main is the entry point for the application.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>s</span> <span style=color:#f92672>:=</span> <span style=color:#e6db74>&#34;HELLO&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>stackCopy</span>(<span style=color:#f92672>&amp;</span><span style=color:#a6e22e>s</span>, <span style=color:#ae81ff>0</span>, [<span style=color:#a6e22e>size</span>]<span style=color:#66d9ef>int</span>{})
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// stackCopy recursively runs increasing the size
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// of the stack.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>stackCopy</span>(<span style=color:#a6e22e>s</span> <span style=color:#f92672>*</span><span style=color:#66d9ef>string</span>, <span style=color:#a6e22e>c</span> <span style=color:#66d9ef>int</span>, <span style=color:#a6e22e>a</span> [<span style=color:#a6e22e>size</span>]<span style=color:#66d9ef>int</span>) {
+</span></span><span style=display:flex><span>    println(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>s</span>, <span style=color:#f92672>*</span><span style=color:#a6e22e>s</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>c</span><span style=color:#f92672>++</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>c</span> <span style=color:#f92672>==</span> <span style=color:#ae81ff>10</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>stackCopy</span>(<span style=color:#a6e22e>s</span>, <span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>a</span>)
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>输出结果的第 2 和第 6 行，会看到 <code>main</code> 函数栈的 <code>s</code> 变量地址值改变了两次。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#ae81ff>0</span> <span style=color:#ae81ff>0xc00006ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>1</span> <span style=color:#ae81ff>0xc00006ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>2</span> <span style=color:#ae81ff>0xc00007ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>3</span> <span style=color:#ae81ff>0xc00007ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>4</span> <span style=color:#ae81ff>0xc00007ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>5</span> <span style=color:#ae81ff>0xc00007ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>6</span> <span style=color:#ae81ff>0xc00011ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>7</span> <span style=color:#ae81ff>0xc00011ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>8</span> <span style=color:#ae81ff>0xc00011ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>9</span> <span style=color:#ae81ff>0xc00011ff68</span> <span style=color:#a6e22e>HELLO</span>
+</span></span></code></pre></div><h2 id=逃逸机制escape-mechanics>逃逸机制（Escape Mechanics）</h2><p>如果变量值需要在函数栈帧外访问，都会将该变量值重新分配到堆上，这就是逃逸分析算法要做的事情，确保对任何变量值的访问始终是准确、一致和高效的。</p><p>让我们通过程序 2 来了解逃逸分析。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序2
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>user</span> <span style=color:#66d9ef>struct</span> {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>name</span>  <span style=color:#66d9ef>string</span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>email</span> <span style=color:#66d9ef>string</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>u1</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>createUserV1</span>()
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>u2</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>createUserV2</span>()
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    println(<span style=color:#e6db74>&#34;u1&#34;</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u1</span>, <span style=color:#e6db74>&#34;u2&#34;</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u2</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>//go:noinline
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>createUserV1</span>() <span style=color:#a6e22e>user</span> {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>u</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>user</span>{
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>name</span>:  <span style=color:#e6db74>&#34;Bill&#34;</span>,
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>email</span>: <span style=color:#e6db74>&#34;bill@ardanlabs.com&#34;</span>,
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    println(<span style=color:#e6db74>&#34;V1&#34;</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>u</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>//go:noinline
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>createUserV2</span>() <span style=color:#f92672>*</span><span style=color:#a6e22e>user</span> {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>u</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>user</span>{
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>name</span>:  <span style=color:#e6db74>&#34;Bill&#34;</span>,
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>email</span>: <span style=color:#e6db74>&#34;bill@ardanlabs.com&#34;</span>,
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    println(<span style=color:#e6db74>&#34;V2&#34;</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>程序 2 中使用了 <code>[//go:noinline](//go:noinline)</code> 指令来阻止编译器使用内联代码优化，内联代码优化会将函数调用变成内联代码。程序 2 中有两个版本的 <code>createUserXX</code> 函数，<code>createUserV1()</code> 返回的是 <code>user</code> 变量的副本。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>createUserV1</span>() <span style=color:#a6e22e>user</span> {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>u</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>user</span>{
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>name</span>:  <span style=color:#e6db74>&#34;Bill&#34;</span>,
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>email</span>: <span style=color:#e6db74>&#34;bill@ardanlabs.com&#34;</span>,
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    println(<span style=color:#e6db74>&#34;V1&#34;</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>u</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p><code>createUserV1()</code> 函数返回之后，栈空间应该是图 1 这样的：</p><p><img src=https://sunpe.github.io/images/golang_escape/1.png alt>
+图1</p><p><code>createUserV2()</code> 函数返回的是 user 变量的指针，所以调用方收到的是 user 变量地址的副本：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>createUserV2</span>() <span style=color:#f92672>*</span><span style=color:#a6e22e>user</span> {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>u</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>user</span>{
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>name</span>:  <span style=color:#e6db74>&#34;Bill&#34;</span>,
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>email</span>: <span style=color:#e6db74>&#34;bill@ardanlabs.com&#34;</span>,
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    println(<span style=color:#e6db74>&#34;V2&#34;</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>按《<a href=https://sunpe.github.io/posts/golang-stack-and-pointer/>Golang 语言机制之栈与指针</a>》一文，<code>createUserV2()</code> 函数返回后栈空间应该如图 2 所示：</p><p><img src=https://sunpe.github.io/images/golang_escape/2.png alt>
+图2</p><p>但是图 2 所示的栈空间有一个严重的问题，<code>main</code> 函数栈帧 <code>u2</code> 指向了无效的内存空间，这段地址空间在下一次函数调用时可能会被重新初始化。 这种情况下，编译器认为在 <code>createUserV2</code> 函数栈帧中构造 <code>user</code> 是不安全的，因此会改为在堆中构造 <code>user</code>，在程序 2 的执行到第 28 行开始构造 user 时就会在堆上构造。</p><p><a href=https://sunpe.github.io/posts/golang-stack-and-pointer/>Golang 语言机制之栈与指针</a>一文指出，函数只能直接访问自己栈帧内的内存空间，或通过指针间接访问栈帧外的内存空间，所以访问逃逸到堆上的变量值也需要通过指针来间接访问。所以执行完 <code>createUserV2</code> 函数后栈空间应该开起来如图 3:</p><p><img src=https://sunpe.github.io/images/golang_escape/3.png alt>
+图3</p><p><code>createUserV2</code> 函数栈帧的变量 <code>u</code> 的值存储在堆上而不是在栈上，所以访问变量 <code>u</code> 的值也需要通过指针来间接访问。</p><h2 id=可读性readability>可读性（Readability）</h2><p><code>createUserV2</code> 函数先构建了 <code>user</code> 变量，然后再通过 <code>&</code> 操作获取变量地址并返回。如果直接构造成指针，如程序 3 所示。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 3
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>createUserV2</span>() <span style=color:#f92672>*</span><span style=color:#a6e22e>user</span> {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>u</span> <span style=color:#f92672>:=</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>user</span>{
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>name</span>:  <span style=color:#e6db74>&#34;Bill&#34;</span>,
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>email</span>: <span style=color:#e6db74>&#34;bill@ardanlabs.com&#34;</span>,
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    println(<span style=color:#e6db74>&#34;V2&#34;</span>, <span style=color:#a6e22e>u</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>u</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>如果我们只关注 <code>return</code>，程序 3 <code>return u</code> 告诉我们要返回给调用者的是 <code>u</code> 的副本，程序 2 <code>return &u</code> 告诉我们返回给调用者的是 <code>u</code> 的地址值，并且变量 <code>u</code> 已经逃逸到堆上。所以，读代码时要记住，指针是为了共享变量，<code>&</code> 操作符对应的单词是「sharing」，这样写有助于提高代码的可读性。</p><p>来看一下程序 4 的例子。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 4
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>u</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>user</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>json</span>.<span style=color:#a6e22e>Unmarshal</span>([]byte(<span style=color:#a6e22e>r</span>), <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>)
+</span></span><span style=display:flex><span><span style=color:#66d9ef>return</span> <span style=color:#a6e22e>u</span>, <span style=color:#a6e22e>err</span>
+</span></span></code></pre></div><p>第二行的 <code>json.Unmarshal</code> 第二个参数必须是指针类型，所以需要传递 <code>&u</code> 作为参数。这段代码第一行创建了 user 的指针类型并初始化零值，第二行通过 <code>u</code> 的地址调用 <code>json.Unmarshal</code>，第三行和调用者共享 <code>u</code> 的副本。</p><p>这段代码并不直观，可以稍作修改，得到程序5.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 5
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>u</span> <span style=color:#a6e22e>user</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>json</span>.<span style=color:#a6e22e>Unmarshal</span>([]byte(<span style=color:#a6e22e>r</span>), <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>)
+</span></span><span style=display:flex><span><span style=color:#66d9ef>return</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span>, <span style=color:#a6e22e>err</span>
+</span></span></code></pre></div><p>程序 5 的第一行创建了 user 变量并初始化零值，第二行通过 <code>u</code> 的地址调用 <code>json.Unmarshal</code>，第三行和调用者共享 <code>u</code>，比程序 4 更直观，返回 <code>&u</code> 说明 <code>u</code> 会逃逸到堆上。</p><p>如果需要和调用者共享变量值时，在构造值的时候使用值语义，利用 <code>&</code> 操作符的可读性来明确值是被共享的。</p><h2 id=编译器日志compiler-reporting>编译器日志（Compiler Reporting）</h2><p>在构建时，可以通过编译器日志（Compiler Reporting）来查看编译器的逃逸分析，在 <code>go build</code> 指令后添加 <code>-gcflags</code> 指令和 <code>-m</code> 参数，就可以看到编译器日志：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>$</span> <span style=color:#66d9ef>go</span> <span style=color:#a6e22e>build</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>gcflags</span> <span style=color:#e6db74>&#34;-m -m&#34;</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>16</span>: <span style=color:#a6e22e>cannot</span> <span style=color:#a6e22e>inline</span> <span style=color:#a6e22e>createUserV1</span>: <span style=color:#a6e22e>marked</span> <span style=color:#66d9ef>go</span>:<span style=color:#a6e22e>noinline</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>27</span>: <span style=color:#a6e22e>cannot</span> <span style=color:#a6e22e>inline</span> <span style=color:#a6e22e>createUserV2</span>: <span style=color:#a6e22e>marked</span> <span style=color:#66d9ef>go</span>:<span style=color:#a6e22e>noinline</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>8</span>: <span style=color:#a6e22e>cannot</span> <span style=color:#a6e22e>inline</span> <span style=color:#a6e22e>main</span>: <span style=color:#a6e22e>non</span><span style=color:#f92672>-</span><span style=color:#a6e22e>leaf</span> <span style=color:#a6e22e>function</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>22</span>: <span style=color:#a6e22e>createUserV1</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span> <span style=color:#a6e22e>does</span> <span style=color:#a6e22e>not</span> <span style=color:#a6e22e>escape</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>34</span>: <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span> <span style=color:#a6e22e>escapes</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>heap</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>34</span>:   <span style=color:#a6e22e>from</span> <span style=color:#960050;background-color:#1e0010>~</span><span style=color:#a6e22e>r0</span> (<span style=color:#66d9ef>return</span>) <span style=color:#a6e22e>at</span> .<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>34</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>31</span>: <span style=color:#a6e22e>moved</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>heap</span>: <span style=color:#a6e22e>u</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>33</span>: <span style=color:#a6e22e>createUserV2</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span> <span style=color:#a6e22e>does</span> <span style=color:#a6e22e>not</span> <span style=color:#a6e22e>escape</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>12</span>: <span style=color:#a6e22e>main</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u1</span> <span style=color:#a6e22e>does</span> <span style=color:#a6e22e>not</span> <span style=color:#a6e22e>escape</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>12</span>: <span style=color:#a6e22e>main</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u2</span> <span style=color:#a6e22e>does</span> <span style=color:#a6e22e>not</span> <span style=color:#a6e22e>escape</span>
+</span></span></code></pre></div><p>实际上可以使用 4 个 <code>-m</code>，但是超过 2 个控制台信息就很多，所以这里使用了 2 个 <code>-m</code>。</p><p>可以看到日志里有了逃逸分析的日志。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>22</span>: <span style=color:#a6e22e>createUserV1</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span> <span style=color:#a6e22e>does</span> <span style=color:#a6e22e>not</span> <span style=color:#a6e22e>escape</span>
+</span></span></code></pre></div><p>通过日志，我们可以知道程序 2 第 22 行调用 <code>println</code> 函数时没有发生逃逸。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>34</span>: <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>u</span> <span style=color:#a6e22e>escapes</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>heap</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>34</span>:   <span style=color:#a6e22e>from</span> <span style=color:#960050;background-color:#1e0010>~</span><span style=color:#a6e22e>r0</span> (<span style=color:#66d9ef>return</span>) <span style=color:#a6e22e>at</span> .<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>34</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>main</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>31</span>: <span style=color:#a6e22e>moved</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>heap</span>: <span style=color:#a6e22e>u</span>
+</span></span></code></pre></div><p>这几行是说，第 31 行创建的 <code>u</code> 变量，因为第 34 行的 return 语句发生了逃逸。</p><h2 id=变量逃逸情况总结>变量逃逸情况总结</h2><p>总的来说，如果出现了以下三种情况，则必然发生逃逸：</p><ul><li>函数中new或字面量创建出的变量，将其指针作为函数返回值，则该变量一定发生逃逸（构造函数返回的指针变量一定逃逸）</li><li>被已经逃逸的变量引用的指针，一定发生逃逸</li><li>被指针类型的slice、map和chan引用的指针，一定发生逃逸</li></ul><p>而在以下两种情况下，则不会发生逃逸的情况：</p><ul><li>指针被未发生逃逸的变量引用</li><li>仅仅在函数内对变量做取址操作，而未将指针传出</li></ul><h2 id=总结>总结</h2><p>变量是否逃逸是有变量的分享方式决定的，只有当一个变量被共享了（通过变量的地址的方式共享），变量才会逃逸到堆上。变量逃逸到堆上会增加 GC 的压力，而通过变量副本的方式需要存储和维护不同的副本，每种方式都有好处和开销，关键的时要正确、一致且平衡的使用每种语义。</p><h2 id=参考资料>参考资料</h2><ol><li><a href=https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-escape-analysis.html>https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-escape-analysis.html</a></li></ol></article><section class=post-nav><ul><li><a href=https://sunpe.github.io/posts/2020-07-17-golang-stack-and-pointer/><i class="fa fa-chevron-circle-left"></i> golang语言机制之栈与指针</a></li><li><a href=https://sunpe.github.io/posts/2020-09-04-golang-memory-analyst/>golang 语言机制之内存剖析 <i class="fa fa-chevron-circle-right"></i></a></li></ul></section></main><footer><ul><li><h6>Copyright © 2022 - sunpeng |
+Rendered by <a href=https://gohugo.io title=Hugo>Hugo</a> |
+<a href=https://sunpe.github.ioindex.xml>Subscribe</a></h6></li></ul></footer></div><script src=https://sunpe.github.io/js/scripts.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga("create","UA-161915530-1","auto"),ga("send","pageview"))</script><script async src=https://www.google-analytics.com/analytics.js></script>
+<script id=baidu_analytics>var _hmt=_hmt||[];(function(){if(window.location.hostname==="localhost")return;var t,e=document.createElement("script");e.async=!0,e.src="https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script><script id=baidu_push>(function(){if(window.location.hostname==="localhost")return;var t,n,e=document.createElement("script");e.async=!0,n=window.location.protocol.split(":")[0],n==="https"?e.src="https://zz.bdstatic.com/linksubmit/push.js":e.src="http://push.zhanzhang.baidu.com/push.js",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script></body></html>

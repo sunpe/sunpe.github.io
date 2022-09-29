@@ -1,237 +1,76 @@
-<!doctype html>
-
-<html lang="en">
-
-<head>
-  <title>golang中的defer, panic和recover - hello world</title>
-  <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="stay foolish, stay hungry" />
-<meta name="author" content="sunpeng" />
-
-
-<meta name="baidu-site-verification" content="vWQN0uJLC2" />
-<meta property="og:title" content="golang中的defer, panic和recover" />
-<meta property="og:description" content="Go提供了 defer, panic 和 recover 三个内置方法。其中 panic 会让程序崩溃，defer 可以在函数 return 之前执行操作， defer 和 recover 配合可以捕获 panic。
-defer defer 声明的语句可以在函数或方法返回（不管是正常返回或异常返回）之前调用，类似于 Java 里面的 finally，可以做一些清理的工作，比如关闭文件、 释放资源等操作。" />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://sunpe.github.io/posts/2020-06-18-golang-panic-defer-recover/" />
-<meta property="article:published_time" content="2020-06-18T22:00:00+08:00" />
-<meta property="article:modified_time" content="2020-06-18T22:00:00+08:00" />
-
-<meta name="generator" content="Hugo 0.75.1" />
-    
-
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://sunpe.github.io/fontawesome/css/all.min.css" />
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
-  
-  
-  <link rel="stylesheet" type="text/css" href="https://sunpe.github.io/css/styles.css" /></head>
-
-<body>
-  <div id="container">
-    <header>
-      <h1>
-        <a href="https://sunpe.github.io/">hello world</a>
-      </h1>
-
-      <ul id="social-media">
-      </ul>
-      
-      <p><em>stay foolish, stay hungry</em></p>
-      
-    </header>
-
-    
-<nav>
-    <ul>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/">
-                <i class="fa-li fa  fa-lg"></i><span>Home</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/posts/">
-                <i class="fa-li fa  fa-lg"></i><span>Posts</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/tags/">
-                <i class="fa-li fa  fa-lg"></i><span>Tags</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/categories/">
-                <i class="fa-li fa  fa-lg"></i><span>Categories</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/about/">
-                <i class="fa-li fa  fa-lg"></i><span>About</span>
-            </a>
-        </li>
-        
-    </ul>
-</nav>
-
-
-    <main>
-
-
-
-
-<article>
-
-    <h1>golang中的defer, panic和recover</h1>
-
-    
-      <aside>
-    <ul>
-        <li>
-            <time class="post-date" datetime="2020-06-18T22:00:00&#43;08:00">Jun 18, 2020</time>
-        </li>
-        
-        
-        <li>
-            Categories:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/categories/golang">golang</a>
-                
-            </em>
-        </li>
-        
-
-        
-        <li>
-            Tags:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/tags/golang">#golang</a>
-                
-            </em>
-        </li>
-        
-
-        <li>3 minutes read</li>
-    </ul>
-</aside>
-
-    
-
-    
-<div class="featured_image">
-    <a href="https://sunpe.github.io/posts/2020-06-18-golang-panic-defer-recover/" title="golang中的defer, panic和recover">
-        <img src="">
-    </a>
-</div>
-
-
-
-    <p>Go提供了 <code>defer</code>, <code>panic</code> 和 <code>recover</code> 三个内置方法。其中 <code>panic</code> 会让程序崩溃，<code>defer</code> 可以在函数 return 之前执行操作， <code>defer</code> 和 <code>recover</code> 配合可以捕获 panic。</p>
-<h2 id="defer">defer</h2>
-<p><code>defer</code> 声明的语句可以在函数或方法返回（不管是正常返回或异常返回）之前调用，类似于 Java 里面的 <code>finally</code>，可以做一些清理的工作，比如关闭文件、 释放资源等操作。</p>
-<p>程序 1 展示了 <code>defer</code> 的一般的用法，通过 <code>defer</code> 语句保证 <code>src</code> 和 <code>dst</code> 最终会被释放。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 1
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">CopyFile</span>(<span style="color:#a6e22e">dstName</span>, <span style="color:#a6e22e">srcName</span> <span style="color:#66d9ef">string</span>) (<span style="color:#a6e22e">written</span> <span style="color:#66d9ef">int64</span>, <span style="color:#a6e22e">err</span> <span style="color:#66d9ef">error</span>) {
-    <span style="color:#a6e22e">src</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Open</span>(<span style="color:#a6e22e">srcName</span>)
-    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-        <span style="color:#66d9ef">return</span>
-    }
-    <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">src</span>.<span style="color:#a6e22e">Close</span>()
-
-    <span style="color:#a6e22e">dst</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Create</span>(<span style="color:#a6e22e">dstName</span>)
-    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-        <span style="color:#66d9ef">return</span>
-    }
-    <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">dst</span>.<span style="color:#a6e22e">Close</span>()
-
-    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">Copy</span>(<span style="color:#a6e22e">dst</span>, <span style="color:#a6e22e">src</span>)
-}
-</code></pre></div><p>defer 语句有三个约定：</p>
-<ol>
-<li>
-<p>defer 语句参数的值在 defer 语句声明时就已经确定了</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 2
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">a</span>() {
-    <span style="color:#a6e22e">i</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">0</span>
-    <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#a6e22e">i</span>)
-    <span style="color:#a6e22e">i</span><span style="color:#f92672">++</span>
-    <span style="color:#66d9ef">return</span>
-}
-</code></pre></div><p>defer 语句并不是简单的延迟执行，程序 2 中的 <code>a()</code> 方法执行到 <code>defer fmt.Println(i)</code> 时，会将i的值 copy 一份和defer语句的声明一起入栈，在 return 之前，声明的 defer 语句出栈执行，所以程序 2 最终打印出i的值是<code>0</code>。</p>
-</li>
-<li>
-<p>defer 语句的执行顺序是后进先出（LIFO）</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 3
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">b</span>() {
-    <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">i</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">0</span>; <span style="color:#a6e22e">i</span> &lt; <span style="color:#ae81ff">4</span>; <span style="color:#a6e22e">i</span><span style="color:#f92672">++</span> {
-        <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Print</span>(<span style="color:#a6e22e">i</span>)
-    }
-}
-</code></pre></div><p>defer 语句的声明和执行可以看作是 defer 语句块的「入栈」和「出栈」操作，先声明的 defer 语句最后执行，所以程序 3 的输出是 <code>3201</code></p>
-</li>
-<li>
-<p>defer 语句可以读取并修改外部函数命名的返回值（named return values）</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 4
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">c</span>() (<span style="color:#a6e22e">i</span> <span style="color:#66d9ef">int</span>) {
-    <span style="color:#66d9ef">defer</span> <span style="color:#66d9ef">func</span>() { <span style="color:#a6e22e">i</span><span style="color:#f92672">++</span> }()
-    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">i</span>
-}
-</code></pre></div><p>defer 语句可以在 return 之前执行, 并且可以修改外部函数命名的返回值（named return values）。程序 4 在 return 之前会执行 defer 语句，所以程序 4 最终返回的是 <code>1</code>。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 5
-</span><span style="color:#75715e"></span> <span style="color:#66d9ef">func</span> <span style="color:#a6e22e">c</span>() <span style="color:#66d9ef">int</span> {
-    <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">i</span> <span style="color:#66d9ef">int</span>
-    <span style="color:#66d9ef">defer</span> <span style="color:#66d9ef">func</span>() { <span style="color:#a6e22e">i</span><span style="color:#f92672">++</span> }()
-    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">i</span>
-}
-</code></pre></div><p>但程序 5 最终输出的是 <code>0</code>。</p>
-</li>
-</ol>
-<h2 id="panic和recover">panic和recover</h2>
-<p><code>panic</code> 内置函数可以让让当前 goroutine 崩溃，当函数 F 中调用了或者触发了 <code>panic</code>，F 会立即终止运行，然后执行 F 中的 <code>defer</code> 语句，然后 F 返回到调用者 G，G 也会立即终止运行，然后执行 G 中的 <code>defer</code> 语句，这样一层一层的向上返回，直到顶层的 goroutine（函数调用链的顶层 goroutine，不一定是 main goroutine），然后程序崩溃。</p>
-<p><code>recover</code> 内置方法可以再次控制 panic 的 goroutine。<code>recover</code> 方法只有在 <code>defer</code> 中才有效果。正常情况下，<code>recover</code> 会返回 <code>nil</code>，如果当前 goroutine 发生了 panic，<code>recover</code> 方法会捕获 panic 的值，并且再次获得程序的控制权。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 6
-</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
-
-<span style="color:#f92672">import</span> <span style="color:#e6db74">&#34;fmt&#34;</span>
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
-    <span style="color:#a6e22e">f</span>()
-    <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Returned normally from f.&#34;</span>)
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">f</span>() {
-    <span style="color:#66d9ef">defer</span> <span style="color:#66d9ef">func</span>() {
-        <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">r</span> <span style="color:#f92672">:=</span> recover(); <span style="color:#a6e22e">r</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-            <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Recovered in f&#34;</span>, <span style="color:#a6e22e">r</span>)
-        }
-    }()
-    <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Calling g.&#34;</span>)
-    <span style="color:#a6e22e">g</span>(<span style="color:#ae81ff">0</span>)
-    <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Returned normally from g.&#34;</span>)
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">g</span>(<span style="color:#a6e22e">i</span> <span style="color:#66d9ef">int</span>) {
-    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">i</span> &gt; <span style="color:#ae81ff">3</span> {
-        <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Panicking!&#34;</span>)
-        panic(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Sprintf</span>(<span style="color:#e6db74">&#34;%v&#34;</span>, <span style="color:#a6e22e">i</span>))
-    }
-    <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Defer in g&#34;</span>, <span style="color:#a6e22e">i</span>)
-    <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Printing in g&#34;</span>, <span style="color:#a6e22e">i</span>)
-    <span style="color:#a6e22e">g</span>(<span style="color:#a6e22e">i</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
-}
-</code></pre></div><p>程序 6 中 g 的逻辑是如果 <code>i&gt;3</code>，则 panic，否则递归进行 <code>i+1</code>，f 在 <code>defer</code> 中调用了 <code>recover</code>，并打印了 recover 信息，程序的输出：</p>
-<pre><code>Calling g.
+<!doctype html><html lang=en><head><title>golang中的defer, panic和recover - hello world</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="stay foolish, stay hungry"><meta name=author content="sunpeng"><meta name=baidu-site-verification content="vWQN0uJLC2"><meta property="og:title" content="golang中的defer, panic和recover"><meta property="og:description" content="Go提供了 defer, panic 和 recover 三个内置方法。其中 panic 会让程序崩溃，defer 可以在函数 return 之前执行操作， defer 和 recover 配合可以捕获 panic。"><meta property="og:type" content="article"><meta property="og:url" content="https://sunpe.github.io/posts/2020-06-18-golang-panic-defer-recover/"><meta property="article:section" content="posts"><meta property="article:published_time" content="2020-06-18T22:00:00+08:00"><meta property="article:modified_time" content="2020-06-18T22:00:00+08:00"><meta name=generator content="Hugo 0.104.1"><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin=anonymous><link rel=stylesheet href=https://sunpe.github.io/fontawesome/css/all.min.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda"><link rel=stylesheet type=text/css href=https://sunpe.github.io/css/styles.css></head><body><div id=container><header><h1><a href=https://sunpe.github.io/>hello world</a></h1><ul id=social-media></ul><p><em>stay foolish, stay hungry</em></p></header><nav><ul><li><a href=https://sunpe.github.io/><i class="fa-li fa fa-lg"></i><span>Home</span></a></li><li><a href=https://sunpe.github.io/posts/><i class="fa-li fa fa-lg"></i><span>Posts</span></a></li><li><a href=https://sunpe.github.io/tags/><i class="fa-li fa fa-lg"></i><span>Tags</span></a></li><li><a href=https://sunpe.github.io/categories/><i class="fa-li fa fa-lg"></i><span>Categories</span></a></li><li><a href=https://sunpe.github.io/about/><i class="fa-li fa fa-lg"></i><span>About</span></a></li></ul></nav><main><article><h1>golang中的defer, panic和recover</h1><aside><ul><li><time class=post-date datetime=2020-06-18T22:00:00+08:00>Jun 18, 2020</time></li><li>Categories:
+<em><a href=https://sunpe.github.io/categories/golang>golang</a></em></li><li>Tags:
+<em><a href=https://sunpe.github.io/tags/golang>#golang</a></em></li><li>3 minutes read</li></ul></aside><div class=featured_image><a href=https://sunpe.github.io/posts/2020-06-18-golang-panic-defer-recover/ title="golang中的defer, panic和recover"><img src></a></div><p>Go提供了 <code>defer</code>, <code>panic</code> 和 <code>recover</code> 三个内置方法。其中 <code>panic</code> 会让程序崩溃，<code>defer</code> 可以在函数 return 之前执行操作， <code>defer</code> 和 <code>recover</code> 配合可以捕获 panic。</p><h2 id=defer>defer</h2><p><code>defer</code> 声明的语句可以在函数或方法返回（不管是正常返回或异常返回）之前调用，类似于 Java 里面的 <code>finally</code>，可以做一些清理的工作，比如关闭文件、 释放资源等操作。</p><p>程序 1 展示了 <code>defer</code> 的一般的用法，通过 <code>defer</code> 语句保证 <code>src</code> 和 <code>dst</code> 最终会被释放。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 1
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>CopyFile</span>(<span style=color:#a6e22e>dstName</span>, <span style=color:#a6e22e>srcName</span> <span style=color:#66d9ef>string</span>) (<span style=color:#a6e22e>written</span> <span style=color:#66d9ef>int64</span>, <span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>src</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>os</span>.<span style=color:#a6e22e>Open</span>(<span style=color:#a6e22e>srcName</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>src</span>.<span style=color:#a6e22e>Close</span>()
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>dst</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>os</span>.<span style=color:#a6e22e>Create</span>(<span style=color:#a6e22e>dstName</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>dst</span>.<span style=color:#a6e22e>Close</span>()
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>Copy</span>(<span style=color:#a6e22e>dst</span>, <span style=color:#a6e22e>src</span>)
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>defer 语句有三个约定：</p><ol><li><p>defer 语句参数的值在 defer 语句声明时就已经确定了</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 2
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>a</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#ae81ff>0</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>i</span>)
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>defer 语句并不是简单的延迟执行，程序 2 中的 <code>a()</code> 方法执行到 <code>defer fmt.Println(i)</code> 时，会将i的值 copy 一份和defer语句的声明一起入栈，在 return 之前，声明的 defer 语句出栈执行，所以程序 2 最终打印出i的值是<code>0</code>。</p></li><li><p>defer 语句的执行顺序是后进先出（LIFO）</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 3
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>b</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> &lt; <span style=color:#ae81ff>4</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Print</span>(<span style=color:#a6e22e>i</span>)
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>defer 语句的声明和执行可以看作是 defer 语句块的「入栈」和「出栈」操作，先声明的 defer 语句最后执行，所以程序 3 的输出是 <code>3201</code></p></li><li><p>defer 语句可以读取并修改外部函数命名的返回值（named return values）</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 4
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>c</span>() (<span style=color:#a6e22e>i</span> <span style=color:#66d9ef>int</span>) {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#66d9ef>func</span>() { <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> }()
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>i</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>defer 语句可以在 return 之前执行, 并且可以修改外部函数命名的返回值（named return values）。程序 4 在 return 之前会执行 defer 语句，所以程序 4 最终返回的是 <code>1</code>。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 5
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span> <span style=color:#66d9ef>func</span> <span style=color:#a6e22e>c</span>() <span style=color:#66d9ef>int</span> {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>var</span> <span style=color:#a6e22e>i</span> <span style=color:#66d9ef>int</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#66d9ef>func</span>() { <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> }()
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>i</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>但程序 5 最终输出的是 <code>0</code>。</p></li></ol><h2 id=panic和recover>panic和recover</h2><p><code>panic</code> 内置函数可以让让当前 goroutine 崩溃，当函数 F 中调用了或者触发了 <code>panic</code>，F 会立即终止运行，然后执行 F 中的 <code>defer</code> 语句，然后 F 返回到调用者 G，G 也会立即终止运行，然后执行 G 中的 <code>defer</code> 语句，这样一层一层的向上返回，直到顶层的 goroutine（函数调用链的顶层 goroutine，不一定是 main goroutine），然后程序崩溃。</p><p><code>recover</code> 内置方法可以再次控制 panic 的 goroutine。<code>recover</code> 方法只有在 <code>defer</code> 中才有效果。正常情况下，<code>recover</code> 会返回 <code>nil</code>，如果当前 goroutine 发生了 panic，<code>recover</code> 方法会捕获 panic 的值，并且再次获得程序的控制权。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 6
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> <span style=color:#e6db74>&#34;fmt&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>f</span>()
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;Returned normally from f.&#34;</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>f</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>r</span> <span style=color:#f92672>:=</span> recover(); <span style=color:#a6e22e>r</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>            <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;Recovered in f&#34;</span>, <span style=color:#a6e22e>r</span>)
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    }()
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;Calling g.&#34;</span>)
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>g</span>(<span style=color:#ae81ff>0</span>)
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;Returned normally from g.&#34;</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>g</span>(<span style=color:#a6e22e>i</span> <span style=color:#66d9ef>int</span>) {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>i</span> &gt; <span style=color:#ae81ff>3</span> {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;Panicking!&#34;</span>)
+</span></span><span style=display:flex><span>        panic(<span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Sprintf</span>(<span style=color:#e6db74>&#34;%v&#34;</span>, <span style=color:#a6e22e>i</span>))
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;Defer in g&#34;</span>, <span style=color:#a6e22e>i</span>)
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;Printing in g&#34;</span>, <span style=color:#a6e22e>i</span>)
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>g</span>(<span style=color:#a6e22e>i</span> <span style=color:#f92672>+</span> <span style=color:#ae81ff>1</span>)
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>程序 6 中 g 的逻辑是如果 <code>i>3</code>，则 panic，否则递归进行 <code>i+1</code>，f 在 <code>defer</code> 中调用了 <code>recover</code>，并打印了 recover 信息，程序的输出：</p><pre tabindex=0><code>Calling g.
 Printing in g 0
 Printing in g 1
 Printing in g 2
@@ -243,8 +82,7 @@ Defer in g 1
 Defer in g 0
 Recovered in f 4
 Returned normally from f
-</code></pre><p>如果去掉f中的 <code>defer</code> 声明，panic 不会 recover，一层一层的返回 <code>panic</code>，直到 goroutine 调用栈的顶端，然后程序崩溃。去掉 defer 语句之后的输出:</p>
-<pre><code>Calling g.
+</code></pre><p>如果去掉f中的 <code>defer</code> 声明，panic 不会 recover，一层一层的返回 <code>panic</code>，直到 goroutine 调用栈的顶端，然后程序崩溃。去掉 defer 语句之后的输出:</p><pre tabindex=0><code>Calling g.
 Printing in g 0
 Printing in g 1
 Printing in g 2
@@ -258,167 +96,72 @@ panic: 4
 
 panic PC=0x2a9cd8
 [stack trace omitted]
-</code></pre><p><code>recover</code> 返回的是 <code>panic</code> 的值，以下三种情况，<code>recover</code> 的值是 <code>nil</code>：</p>
-<ul>
-<li><code>panic</code> 的值是 <code>nil</code></li>
-<li><code>goroutine</code> 没有 panic</li>
-<li><code>recover</code> 没有直接在 <code>defer</code> 中调用</li>
-</ul>
-<p>前两种情况好理解，第三种情况，如果 <code>recover</code> 没有在 <code>defer</code> 中直接调用，那么 <code>recover</code> 就不能捕获 <code>panic</code>。下面三段代码，程序 7 中的 <code>recover()</code> 可以正常捕获 panic，而程序 8 和程序 9 则会 panic。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 7
-</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
-
-<span style="color:#f92672">import</span> <span style="color:#e6db74">&#34;fmt&#34;</span>
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
-    <span style="color:#a6e22e">a</span>()
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">a</span>() {
-    <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">r</span>()
-    panic(<span style="color:#e6db74">&#34;a&#34;</span>)
-
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">r</span>() {
-    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">r</span> <span style="color:#f92672">:=</span> recover(); <span style="color:#a6e22e">r</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-        <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#a6e22e">r</span>)
-    }
-}
-</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 8
-</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
-
-<span style="color:#f92672">import</span> <span style="color:#e6db74">&#34;fmt&#34;</span>
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
-    <span style="color:#a6e22e">a</span>()
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">a</span>() {
-    <span style="color:#66d9ef">defer</span> <span style="color:#66d9ef">func</span>() {
-        <span style="color:#a6e22e">r</span>()
-    }()
-    panic(<span style="color:#e6db74">&#34;a&#34;</span>)
-
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">r</span>() {
-    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">r</span> <span style="color:#f92672">:=</span> recover(); <span style="color:#a6e22e">r</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-        <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#a6e22e">r</span>)
-    }
-}
-</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 9
-</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
-
-<span style="color:#f92672">import</span> <span style="color:#e6db74">&#34;fmt&#34;</span>
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
-    <span style="color:#a6e22e">a</span>()
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">a</span>() {
-    <span style="color:#a6e22e">r</span>()
-    panic(<span style="color:#e6db74">&#34;a&#34;</span>)
-
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">r</span>() {
-    <span style="color:#66d9ef">defer</span> <span style="color:#66d9ef">func</span>() {
-        <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">r</span> <span style="color:#f92672">:=</span> recover(); <span style="color:#a6e22e">r</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-            <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#a6e22e">r</span>)
-        }
-    }()
-}
-</code></pre></div><h2 id="总结">总结</h2>
-<p>这篇文章介绍了 golang 内置的 defer、panic 和 recover 函数，我们了解到：</p>
-<ul>
-<li><code>defer</code> 声明时参数就确定了，不会随着方法内部代码的执行而变化。</li>
-<li><code>defer</code> 执行顺序是后进先出（LIFO）。</li>
-<li><code>defer</code> 可以读取并修改外部函数命名的返回值（named return values）。</li>
-<li><code>recover</code> 必须在 <code>defer</code> 中，并且是 <code>defer</code> 直接调用才能捕获 <code>panic</code>。</li>
-</ul>
-<h2 id="参考">参考</h2>
-<ol>
-<li><a href="https://golang.org/ref/spec#Handling_panics">https://golang.org/ref/spec#Handling_panics</a></li>
-<li><a href="https://blog.golang.org/defer-panic-and-recover">https://blog.golang.org/defer-panic-and-recover</a></li>
-</ol>
-
-
-</article>
-
-
-<section class="post-nav">
-    <ul>
-        
-        <li>
-            <a href="https://sunpe.github.io/posts/2020-06-05-golang-runtime-schedule/"><i class="fa fa-chevron-circle-left"></i> 理解 golang 运行时调度</a>
-        </li>
-        
-        
-        <li>
-            <a href="https://sunpe.github.io/posts/2020-07-03-golang-channel/">理解Golang channel <i class="fa fa-chevron-circle-right"></i> </a>
-        </li>
-        
-    </ul>
-</section>
-  
-    
-    
-  
-
-
-
-
-
-</main>
-    <footer>
-        <h6>Copyright © 2020 - sunpeng |
-            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
-            <a href="https://sunpe.github.io/index.xml">Subscribe </a></h6>
-    </footer>
-</div>
-<script src="https://sunpe.github.io/js/scripts.js"></script>
-
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-161915530-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-<script id="baidu_push">
-  (function(){
-    if (window.location.hostname === 'localhost') return;
-    var bp = document.createElement('script'); bp.async = true;
-    var curProtocol = window.location.protocol.split(':')[0];
-    if (curProtocol === 'https') {
-      bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
-    }
-    else {
-      bp.src = 'http://push.zhanzhang.baidu.com/push.js';
-    }
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(bp, s);
-  })();
-</script>
-</body>
-
-</html>
-
+</code></pre><p><code>recover</code> 返回的是 <code>panic</code> 的值，以下三种情况，<code>recover</code> 的值是 <code>nil</code>：</p><ul><li><code>panic</code> 的值是 <code>nil</code></li><li><code>goroutine</code> 没有 panic</li><li><code>recover</code> 没有直接在 <code>defer</code> 中调用</li></ul><p>前两种情况好理解，第三种情况，如果 <code>recover</code> 没有在 <code>defer</code> 中直接调用，那么 <code>recover</code> 就不能捕获 <code>panic</code>。下面三段代码，程序 7 中的 <code>recover()</code> 可以正常捕获 panic，而程序 8 和程序 9 则会 panic。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 7
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> <span style=color:#e6db74>&#34;fmt&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>a</span>()
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>a</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>r</span>()
+</span></span><span style=display:flex><span>    panic(<span style=color:#e6db74>&#34;a&#34;</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>r</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>r</span> <span style=color:#f92672>:=</span> recover(); <span style=color:#a6e22e>r</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>r</span>)
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 8
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> <span style=color:#e6db74>&#34;fmt&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>a</span>()
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>a</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>r</span>()
+</span></span><span style=display:flex><span>    }()
+</span></span><span style=display:flex><span>    panic(<span style=color:#e6db74>&#34;a&#34;</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>r</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>r</span> <span style=color:#f92672>:=</span> recover(); <span style=color:#a6e22e>r</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>r</span>)
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 9
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> <span style=color:#e6db74>&#34;fmt&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>a</span>()
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>a</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>r</span>()
+</span></span><span style=display:flex><span>    panic(<span style=color:#e6db74>&#34;a&#34;</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>r</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>defer</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>r</span> <span style=color:#f92672>:=</span> recover(); <span style=color:#a6e22e>r</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>            <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>r</span>)
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    }()
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h2 id=总结>总结</h2><p>这篇文章介绍了 golang 内置的 defer、panic 和 recover 函数，我们了解到：</p><ul><li><code>defer</code> 声明时参数就确定了，不会随着方法内部代码的执行而变化。</li><li><code>defer</code> 执行顺序是后进先出（LIFO）。</li><li><code>defer</code> 可以读取并修改外部函数命名的返回值（named return values）。</li><li><code>recover</code> 必须在 <code>defer</code> 中，并且是 <code>defer</code> 直接调用才能捕获 <code>panic</code>。</li></ul><h2 id=参考>参考</h2><ol><li><a href=https://golang.org/ref/spec#Handling_panics>https://golang.org/ref/spec#Handling_panics</a></li><li><a href=https://blog.golang.org/defer-panic-and-recover>https://blog.golang.org/defer-panic-and-recover</a></li></ol></article><section class=post-nav><ul><li><a href=https://sunpe.github.io/posts/2020-06-05-golang-runtime-schedule/><i class="fa fa-chevron-circle-left"></i> 理解 golang 运行时调度</a></li><li><a href=https://sunpe.github.io/posts/2020-07-03-golang-channel/>理解Golang channel <i class="fa fa-chevron-circle-right"></i></a></li></ul></section></main><footer><ul><li><h6>Copyright © 2022 - sunpeng |
+Rendered by <a href=https://gohugo.io title=Hugo>Hugo</a> |
+<a href=https://sunpe.github.ioindex.xml>Subscribe</a></h6></li></ul></footer></div><script src=https://sunpe.github.io/js/scripts.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga("create","UA-161915530-1","auto"),ga("send","pageview"))</script><script async src=https://www.google-analytics.com/analytics.js></script>
+<script id=baidu_analytics>var _hmt=_hmt||[];(function(){if(window.location.hostname==="localhost")return;var t,e=document.createElement("script");e.async=!0,e.src="https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script><script id=baidu_push>(function(){if(window.location.hostname==="localhost")return;var t,n,e=document.createElement("script");e.async=!0,n=window.location.protocol.split(":")[0],n==="https"?e.src="https://zz.bdstatic.com/linksubmit/push.js":e.src="http://push.zhanzhang.baidu.com/push.js",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script></body></html>

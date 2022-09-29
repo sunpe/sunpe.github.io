@@ -1,475 +1,217 @@
-<!doctype html>
-
-<html lang="en">
-
-<head>
-  <title>golang 语言机制之内存剖析 - hello world</title>
-  <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="stay foolish, stay hungry" />
-<meta name="author" content="sunpeng" />
-
-
-<meta name="baidu-site-verification" content="vWQN0uJLC2" />
-<meta property="og:title" content="golang 语言机制之内存剖析" />
-<meta property="og:description" content="《Golang 语言机制之逃逸分析》中介绍了编译器逃逸分析的基础知识，除了共享变量这种情况之外，还有其他情况也会导致变量逃逸。
-示例代码 示例代码是读取byte数组，找到 elvis 字符串并替换成 Elvis。示例代码在 https://play.golang.org/p/n_SzF4Cer4，benchmark 在 https://play.golang.org/p/TnXrxJVfLV。示例代码中有两个函数实现这个功能，这篇文章只关注其中的 algOne 函数。
-以下是入参和期望 algOne 函数输出的结果。
-Input: abcelvisaElvisabcelviseelvisaelvisaabeeeelvise l v i saa bb e l v i saa elvi selvielviselvielvielviselvi1elvielviselvis Output: abcElvisaElvisabcElviseElvisaElvisaabeeeElvise l v i saa bb e l v i saa elvi selviElviselvielviElviselvi1elviElvisElvis 程序 1 是 algOne 函数代码。" />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://sunpe.github.io/posts/2020-09-04-golang-memory-analyst/" />
-<meta property="article:published_time" content="2020-09-04T22:00:00+08:00" />
-<meta property="article:modified_time" content="2020-09-04T22:00:00+08:00" />
-
-<meta name="generator" content="Hugo 0.75.1" />
-    
-
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://sunpe.github.io/fontawesome/css/all.min.css" />
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
-  
-  
-  <link rel="stylesheet" type="text/css" href="https://sunpe.github.io/css/styles.css" /></head>
-
-<body>
-  <div id="container">
-    <header>
-      <h1>
-        <a href="https://sunpe.github.io/">hello world</a>
-      </h1>
-
-      <ul id="social-media">
-      </ul>
-      
-      <p><em>stay foolish, stay hungry</em></p>
-      
-    </header>
-
-    
-<nav>
-    <ul>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/">
-                <i class="fa-li fa  fa-lg"></i><span>Home</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/posts/">
-                <i class="fa-li fa  fa-lg"></i><span>Posts</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/tags/">
-                <i class="fa-li fa  fa-lg"></i><span>Tags</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/categories/">
-                <i class="fa-li fa  fa-lg"></i><span>Categories</span>
-            </a>
-        </li>
-        
-        <li>
-            <a class="" href="https://sunpe.github.io/about/">
-                <i class="fa-li fa  fa-lg"></i><span>About</span>
-            </a>
-        </li>
-        
-    </ul>
-</nav>
-
-
-    <main>
-
-
-
-
-<article>
-
-    <h1>golang 语言机制之内存剖析</h1>
-
-    
-      <aside>
-    <ul>
-        <li>
-            <time class="post-date" datetime="2020-09-04T22:00:00&#43;08:00">Sep 4, 2020</time>
-        </li>
-        
-        
-        <li>
-            Categories:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/categories/golang">golang</a>
-                
-            </em>
-        </li>
-        
-
-        
-        <li>
-            Tags:
-            <em>
-                
-                    
-                    <a href="https://sunpe.github.io/tags/golang">#golang</a>
-                
-            </em>
-        </li>
-        
-
-        <li>6 minutes read</li>
-    </ul>
-</aside>
-
-    
-
-    
-<div class="featured_image">
-    <a href="https://sunpe.github.io/posts/2020-09-04-golang-memory-analyst/" title="golang 语言机制之内存剖析">
-        <img src="">
-    </a>
-</div>
-
-
-
-    <p>《<a href="https://sunpe.github.io/posts/golang-escape/">Golang 语言机制之逃逸分析</a>》中介绍了编译器逃逸分析的基础知识，除了共享变量这种情况之外，还有其他情况也会导致变量逃逸。</p>
-<h2 id="示例代码">示例代码</h2>
-<p>示例代码是读取byte数组，找到 <code>elvis</code> 字符串并替换成 <code>Elvis</code>。示例代码在 <a href="https://play.golang.org/p/n_SzF4Cer4">https://play.golang.org/p/n_SzF4Cer4</a>，benchmark 在 <a href="https://play.golang.org/p/TnXrxJVfLV">https://play.golang.org/p/TnXrxJVfLV</a>。示例代码中有两个函数实现这个功能，这篇文章只关注其中的 <code>algOne</code> 函数。</p>
-<p>以下是入参和期望 <code>algOne</code> 函数输出的结果。</p>
-<pre><code>Input:
+<!doctype html><html lang=en><head><title>golang 语言机制之内存剖析 - hello world</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="stay foolish, stay hungry"><meta name=author content="sunpeng"><meta name=baidu-site-verification content="vWQN0uJLC2"><meta property="og:title" content="golang 语言机制之内存剖析"><meta property="og:description" content="《Golang 语言机制之逃逸分析》中介绍了编译器逃逸分析的基础知识，除了共享变量这种情况之外，还有其他情况也会导致变量逃逸。"><meta property="og:type" content="article"><meta property="og:url" content="https://sunpe.github.io/posts/2020-09-04-golang-memory-analyst/"><meta property="article:section" content="posts"><meta property="article:published_time" content="2020-09-04T22:00:00+08:00"><meta property="article:modified_time" content="2020-09-04T22:00:00+08:00"><meta name=generator content="Hugo 0.104.1"><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin=anonymous><link rel=stylesheet href=https://sunpe.github.io/fontawesome/css/all.min.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda"><link rel=stylesheet type=text/css href=https://sunpe.github.io/css/styles.css></head><body><div id=container><header><h1><a href=https://sunpe.github.io/>hello world</a></h1><ul id=social-media></ul><p><em>stay foolish, stay hungry</em></p></header><nav><ul><li><a href=https://sunpe.github.io/><i class="fa-li fa fa-lg"></i><span>Home</span></a></li><li><a href=https://sunpe.github.io/posts/><i class="fa-li fa fa-lg"></i><span>Posts</span></a></li><li><a href=https://sunpe.github.io/tags/><i class="fa-li fa fa-lg"></i><span>Tags</span></a></li><li><a href=https://sunpe.github.io/categories/><i class="fa-li fa fa-lg"></i><span>Categories</span></a></li><li><a href=https://sunpe.github.io/about/><i class="fa-li fa fa-lg"></i><span>About</span></a></li></ul></nav><main><article><h1>golang 语言机制之内存剖析</h1><aside><ul><li><time class=post-date datetime=2020-09-04T22:00:00+08:00>Sep 4, 2020</time></li><li>Categories:
+<em><a href=https://sunpe.github.io/categories/golang>golang</a></em></li><li>Tags:
+<em><a href=https://sunpe.github.io/tags/golang>#golang</a></em></li><li>6 minutes read</li></ul></aside><div class=featured_image><a href=https://sunpe.github.io/posts/2020-09-04-golang-memory-analyst/ title="golang 语言机制之内存剖析"><img src></a></div><p>《<a href=https://sunpe.github.io/posts/golang-escape/>Golang 语言机制之逃逸分析</a>》中介绍了编译器逃逸分析的基础知识，除了共享变量这种情况之外，还有其他情况也会导致变量逃逸。</p><h2 id=示例代码>示例代码</h2><p>示例代码是读取byte数组，找到 <code>elvis</code> 字符串并替换成 <code>Elvis</code>。示例代码在 <a href=https://play.golang.org/p/n_SzF4Cer4>https://play.golang.org/p/n_SzF4Cer4</a>，benchmark 在 <a href=https://play.golang.org/p/TnXrxJVfLV>https://play.golang.org/p/TnXrxJVfLV</a>。示例代码中有两个函数实现这个功能，这篇文章只关注其中的 <code>algOne</code> 函数。</p><p>以下是入参和期望 <code>algOne</code> 函数输出的结果。</p><pre tabindex=0><code>Input:
 abcelvisaElvisabcelviseelvisaelvisaabeeeelvise l v i saa bb e l v i saa elvi
 selvielviselvielvielviselvi1elvielviselvis
 
 Output:
 abcElvisaElvisabcElviseElvisaElvisaabeeeElvise l v i saa bb e l v i saa elvi
 selviElviselvielviElviselvi1elviElvisElvis
-</code></pre><p>程序 1 是 <code>algOne</code> 函数代码。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 1
-</span><span style="color:#75715e"></span> <span style="color:#ae81ff">80</span> <span style="color:#66d9ef">func</span> <span style="color:#a6e22e">algOne</span>(<span style="color:#a6e22e">data</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">find</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">repl</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">output</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span>) {
- <span style="color:#ae81ff">81</span>
- <span style="color:#ae81ff">82</span>     <span style="color:#75715e">// Use a bytes Buffer to provide a stream to process.
-</span><span style="color:#75715e"></span> <span style="color:#ae81ff">83</span>     <span style="color:#a6e22e">input</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">NewBuffer</span>(<span style="color:#a6e22e">data</span>)
- <span style="color:#ae81ff">84</span>
- <span style="color:#ae81ff">85</span>     <span style="color:#75715e">// The number of bytes we are looking for.
-</span><span style="color:#75715e"></span> <span style="color:#ae81ff">86</span>     <span style="color:#a6e22e">size</span> <span style="color:#f92672">:=</span> len(<span style="color:#a6e22e">find</span>)
- <span style="color:#ae81ff">87</span>
- <span style="color:#ae81ff">88</span>     <span style="color:#75715e">// Declare the buffers we need to process the stream.
-</span><span style="color:#75715e"></span> <span style="color:#ae81ff">89</span>     <span style="color:#a6e22e">buf</span> <span style="color:#f92672">:=</span> make([]<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">size</span>)
- <span style="color:#ae81ff">90</span>     <span style="color:#a6e22e">end</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">size</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>
- <span style="color:#ae81ff">91</span>
- <span style="color:#ae81ff">92</span>     <span style="color:#75715e">// Read in an initial number of bytes we need to get started.
-</span><span style="color:#75715e"></span> <span style="color:#ae81ff">93</span>     <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">n</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">ReadFull</span>(<span style="color:#a6e22e">input</span>, <span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">end</span>]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
- <span style="color:#ae81ff">94</span>         <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">n</span>])
- <span style="color:#ae81ff">95</span>         <span style="color:#66d9ef">return</span>
- <span style="color:#ae81ff">96</span>     }
- <span style="color:#ae81ff">97</span>
- <span style="color:#ae81ff">98</span>     <span style="color:#66d9ef">for</span> {
- <span style="color:#ae81ff">99</span>
-<span style="color:#ae81ff">100</span>         <span style="color:#75715e">// Read in one byte from the input stream.
-</span><span style="color:#75715e"></span><span style="color:#ae81ff">101</span>         <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">ReadFull</span>(<span style="color:#a6e22e">input</span>, <span style="color:#a6e22e">buf</span>[<span style="color:#a6e22e">end</span>:]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-<span style="color:#ae81ff">102</span>
-<span style="color:#ae81ff">103</span>             <span style="color:#75715e">// Flush the reset of the bytes we have.
-</span><span style="color:#75715e"></span><span style="color:#ae81ff">104</span>             <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">end</span>])
-<span style="color:#ae81ff">105</span>             <span style="color:#66d9ef">return</span>
-<span style="color:#ae81ff">106</span>         }
-<span style="color:#ae81ff">107</span>
-<span style="color:#ae81ff">108</span>         <span style="color:#75715e">// If we have a match, replace the bytes.
-</span><span style="color:#75715e"></span><span style="color:#ae81ff">109</span>         <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Compare</span>(<span style="color:#a6e22e">buf</span>, <span style="color:#a6e22e">find</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span> {
-<span style="color:#ae81ff">110</span>             <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">repl</span>)
-<span style="color:#ae81ff">111</span>
-<span style="color:#ae81ff">112</span>             <span style="color:#75715e">// Read a new initial number of bytes.
-</span><span style="color:#75715e"></span><span style="color:#ae81ff">113</span>             <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">n</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">ReadFull</span>(<span style="color:#a6e22e">input</span>, <span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">end</span>]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-<span style="color:#ae81ff">114</span>                 <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">n</span>])
-<span style="color:#ae81ff">115</span>                 <span style="color:#66d9ef">return</span>
-<span style="color:#ae81ff">116</span>             }
-<span style="color:#ae81ff">117</span>
-<span style="color:#ae81ff">118</span>             <span style="color:#66d9ef">continue</span>
-<span style="color:#ae81ff">119</span>         }
-<span style="color:#ae81ff">120</span>
-<span style="color:#ae81ff">121</span>         <span style="color:#75715e">// Write the front byte since it has been compared.
-</span><span style="color:#75715e"></span><span style="color:#ae81ff">122</span>         <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">WriteByte</span>(<span style="color:#a6e22e">buf</span>[<span style="color:#ae81ff">0</span>])
-<span style="color:#ae81ff">123</span>
-<span style="color:#ae81ff">124</span>         <span style="color:#75715e">// Slice that front byte out.
-</span><span style="color:#75715e"></span><span style="color:#ae81ff">125</span>         copy(<span style="color:#a6e22e">buf</span>, <span style="color:#a6e22e">buf</span>[<span style="color:#ae81ff">1</span>:])
-<span style="color:#ae81ff">126</span>     }
-<span style="color:#ae81ff">127</span> }
-</code></pre></div><p>我们通过 benchmark 来了解 <code>algOne</code> 函数的性能表现和对堆的压力。</p>
-<h2 id="benchmarking">Benchmarking</h2>
-<p>程序2是 <code>algOne</code> 函数的 benchmark 代码。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 程序 2
-</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">BenchmarkAlgorithmOne</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">B</span>) {
-    <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">output</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span>
-    <span style="color:#a6e22e">in</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assembleInputStream</span>()
-    <span style="color:#a6e22e">find</span> <span style="color:#f92672">:=</span> []byte(<span style="color:#e6db74">&#34;elvis&#34;</span>)
-    <span style="color:#a6e22e">repl</span> <span style="color:#f92672">:=</span> []byte(<span style="color:#e6db74">&#34;Elvis&#34;</span>)
-
-    <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">ResetTimer</span>()
-
-    <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">i</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">0</span>; <span style="color:#a6e22e">i</span> &lt; <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">N</span>; <span style="color:#a6e22e">i</span><span style="color:#f92672">++</span> {
-        <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Reset</span>()
-        <span style="color:#a6e22e">algOne</span>(<span style="color:#a6e22e">in</span>, <span style="color:#a6e22e">find</span>, <span style="color:#a6e22e">repl</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">output</span>)
-    }
-}
-</code></pre></div><p>我们通过 <code>go test -run none -bench AlgorithmOne -benchtime 3s -benchmem</code> 运行 benchmark，输出如下：</p>
-<pre><code>$go test -run none -bench AlgorithmOne -benchtime 3s -benchmem
+</code></pre><p>程序 1 是 <code>algOne</code> 函数代码。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 1
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span> <span style=color:#ae81ff>80</span> <span style=color:#66d9ef>func</span> <span style=color:#a6e22e>algOne</span>(<span style=color:#a6e22e>data</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>find</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>repl</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>output</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span>) {
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>81</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>82</span>     <span style=color:#75715e>// Use a bytes Buffer to provide a stream to process.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span> <span style=color:#ae81ff>83</span>     <span style=color:#a6e22e>input</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>NewBuffer</span>(<span style=color:#a6e22e>data</span>)
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>84</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>85</span>     <span style=color:#75715e>// The number of bytes we are looking for.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span> <span style=color:#ae81ff>86</span>     <span style=color:#a6e22e>size</span> <span style=color:#f92672>:=</span> len(<span style=color:#a6e22e>find</span>)
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>87</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>88</span>     <span style=color:#75715e>// Declare the buffers we need to process the stream.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span> <span style=color:#ae81ff>89</span>     <span style=color:#a6e22e>buf</span> <span style=color:#f92672>:=</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>size</span>)
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>90</span>     <span style=color:#a6e22e>end</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>size</span> <span style=color:#f92672>-</span> <span style=color:#ae81ff>1</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>91</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>92</span>     <span style=color:#75715e>// Read in an initial number of bytes we need to get started.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span> <span style=color:#ae81ff>93</span>     <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>n</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>ReadFull</span>(<span style=color:#a6e22e>input</span>, <span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>end</span>]); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>94</span>         <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>n</span>])
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>95</span>         <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>96</span>     }
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>97</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>98</span>     <span style=color:#66d9ef>for</span> {
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>99</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>100</span>         <span style=color:#75715e>// Read in one byte from the input stream.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#ae81ff>101</span>         <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>ReadFull</span>(<span style=color:#a6e22e>input</span>, <span style=color:#a6e22e>buf</span>[<span style=color:#a6e22e>end</span>:]); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span><span style=color:#ae81ff>102</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>103</span>             <span style=color:#75715e>// Flush the reset of the bytes we have.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#ae81ff>104</span>             <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>end</span>])
+</span></span><span style=display:flex><span><span style=color:#ae81ff>105</span>             <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>106</span>         }
+</span></span><span style=display:flex><span><span style=color:#ae81ff>107</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>108</span>         <span style=color:#75715e>// If we have a match, replace the bytes.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#ae81ff>109</span>         <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Compare</span>(<span style=color:#a6e22e>buf</span>, <span style=color:#a6e22e>find</span>) <span style=color:#f92672>==</span> <span style=color:#ae81ff>0</span> {
+</span></span><span style=display:flex><span><span style=color:#ae81ff>110</span>             <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>repl</span>)
+</span></span><span style=display:flex><span><span style=color:#ae81ff>111</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>112</span>             <span style=color:#75715e>// Read a new initial number of bytes.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#ae81ff>113</span>             <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>n</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>ReadFull</span>(<span style=color:#a6e22e>input</span>, <span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>end</span>]); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span><span style=color:#ae81ff>114</span>                 <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>n</span>])
+</span></span><span style=display:flex><span><span style=color:#ae81ff>115</span>                 <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>116</span>             }
+</span></span><span style=display:flex><span><span style=color:#ae81ff>117</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>118</span>             <span style=color:#66d9ef>continue</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>119</span>         }
+</span></span><span style=display:flex><span><span style=color:#ae81ff>120</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>121</span>         <span style=color:#75715e>// Write the front byte since it has been compared.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#ae81ff>122</span>         <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>WriteByte</span>(<span style=color:#a6e22e>buf</span>[<span style=color:#ae81ff>0</span>])
+</span></span><span style=display:flex><span><span style=color:#ae81ff>123</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>124</span>         <span style=color:#75715e>// Slice that front byte out.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#ae81ff>125</span>         copy(<span style=color:#a6e22e>buf</span>, <span style=color:#a6e22e>buf</span>[<span style=color:#ae81ff>1</span>:])
+</span></span><span style=display:flex><span><span style=color:#ae81ff>126</span>     }
+</span></span><span style=display:flex><span><span style=color:#ae81ff>127</span> }
+</span></span></code></pre></div><p>我们通过 benchmark 来了解 <code>algOne</code> 函数的性能表现和对堆的压力。</p><h2 id=benchmarking>Benchmarking</h2><p>程序2是 <code>algOne</code> 函数的 benchmark 代码。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 2
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>BenchmarkAlgorithmOne</span>(<span style=color:#a6e22e>b</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>testing</span>.<span style=color:#a6e22e>B</span>) {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>var</span> <span style=color:#a6e22e>output</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>in</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>assembleInputStream</span>()
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>find</span> <span style=color:#f92672>:=</span> []byte(<span style=color:#e6db74>&#34;elvis&#34;</span>)
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>repl</span> <span style=color:#f92672>:=</span> []byte(<span style=color:#e6db74>&#34;Elvis&#34;</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>b</span>.<span style=color:#a6e22e>ResetTimer</span>()
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> &lt; <span style=color:#a6e22e>b</span>.<span style=color:#a6e22e>N</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Reset</span>()
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>algOne</span>(<span style=color:#a6e22e>in</span>, <span style=color:#a6e22e>find</span>, <span style=color:#a6e22e>repl</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>output</span>)
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>我们通过 <code>go test -run none -bench AlgorithmOne -benchtime 3s -benchmem</code> 运行 benchmark，输出如下：</p><pre tabindex=0><code>$go test -run none -bench AlgorithmOne -benchtime 3s -benchmem
 BenchmarkAlgorithmOne-8   2000000     2522 ns/op    117 B/op     2 allocs/op
-</code></pre><p>我们可以看到 <code>algOne</code> 函数有两次内存分配，每次分配了 117 个字节。我们通过 profiling 数据来看一下哪行代码造成了内存分配。</p>
-<h2 id="profiling">Profiling</h2>
-<p>在 <code>go test</code> 后加上 <code>memprofile</code> 参数，重新执行测试。</p>
-<pre><code>$ go test -run none -bench AlgorithmOne -benchtime 3s -benchmem -memprofile mem.out
+</code></pre><p>我们可以看到 <code>algOne</code> 函数有两次内存分配，每次分配了 117 个字节。我们通过 profiling 数据来看一下哪行代码造成了内存分配。</p><h2 id=profiling>Profiling</h2><p>在 <code>go test</code> 后加上 <code>memprofile</code> 参数，重新执行测试。</p><pre tabindex=0><code>$ go test -run none -bench AlgorithmOne -benchtime 3s -benchmem -memprofile mem.out
 BenchmarkAlgorithmOne-8    2000000    2570 ns/op    117 B/op         2 allocs/op
-</code></pre><p>benchmark 执行结束后，会生成两个新文件。</p>
-<pre><code>~/code/go/src/.../memcpu
+</code></pre><p>benchmark 执行结束后，会生成两个新文件。</p><pre tabindex=0><code>~/code/go/src/.../memcpu
 $ ls -l
 total 9248
 -rw-r--r--  1 bill  staff      209 May 22 18:11 mem.out       (NEW)
 -rwxr-xr-x  1 bill  staff  2847600 May 22 18:10 memcpu.test   (NEW)
 -rw-r--r--  1 bill  staff     4761 May 22 18:01 stream.go
 -rw-r--r--  1 bill  staff      880 May 22 14:49 stream_test.go
-</code></pre><p>源码在 memcpu 目录中，<code>algOne</code> 函数在 stream.go 文件中，benchmark 测试在 stream_test.go 文件中。mem.out 和 memcpu.test 是新生成的文件，内容是profile数据，有了这俩文件，就可以使用 <code>pprof</code> 工具进行分析了</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#960050;background-color:#1e0010">$</span> <span style="color:#66d9ef">go</span> <span style="color:#a6e22e">tool</span> <span style="color:#a6e22e">pprof</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">alloc_space</span> <span style="color:#a6e22e">memcpu</span>.<span style="color:#a6e22e">test</span> <span style="color:#a6e22e">mem</span>.<span style="color:#a6e22e">out</span>
-<span style="color:#a6e22e">Entering</span> <span style="color:#a6e22e">interactive</span> <span style="color:#a6e22e">mode</span> (<span style="color:#66d9ef">type</span> <span style="color:#e6db74">&#34;help&#34;</span> <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">commands</span>)
-(<span style="color:#a6e22e">pprof</span>) <span style="color:#a6e22e">_</span>
-</code></pre></div><p>这里我们使用 <code>-alloc_space</code> 来分析内存分配。我们使用 <code>list algOne</code> 命令查看 <code>algOne</code> 函数的内存分配。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">(<span style="color:#a6e22e">pprof</span>) <span style="color:#a6e22e">list</span> <span style="color:#a6e22e">algOne</span>
-<span style="color:#a6e22e">Total</span>: <span style="color:#ae81ff">335.03</span><span style="color:#a6e22e">MB</span>
-<span style="color:#a6e22e">ROUTINE</span> <span style="color:#f92672">========================</span> <span style="color:#f92672">.../</span><span style="color:#a6e22e">memcpu</span>.<span style="color:#a6e22e">algOne</span> <span style="color:#a6e22e">in</span> <span style="color:#a6e22e">code</span><span style="color:#f92672">/</span><span style="color:#66d9ef">go</span><span style="color:#f92672">/</span><span style="color:#a6e22e">src</span><span style="color:#f92672">/.../</span><span style="color:#a6e22e">memcpu</span><span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>
- <span style="color:#ae81ff">335.03</span><span style="color:#a6e22e">MB</span>   <span style="color:#ae81ff">335.03</span><span style="color:#a6e22e">MB</span> (<span style="color:#a6e22e">flat</span>, <span style="color:#a6e22e">cum</span>)   <span style="color:#ae81ff">100</span><span style="color:#f92672">%</span> <span style="color:#a6e22e">of</span> <span style="color:#a6e22e">Total</span>
-        .          .     <span style="color:#ae81ff">78</span>:
-        .          .     <span style="color:#ae81ff">79</span>:<span style="color:#75715e">// algOne is one way to solve the problem.
-</span><span style="color:#75715e"></span>        .          .     <span style="color:#ae81ff">80</span>:<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">algOne</span>(<span style="color:#a6e22e">data</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">find</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">repl</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">output</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span>) {
-        .          .     <span style="color:#ae81ff">81</span>:
-        .          .     <span style="color:#ae81ff">82</span>: <span style="color:#75715e">// Use a bytes Buffer to provide a stream to process.
-</span><span style="color:#75715e"></span> <span style="color:#ae81ff">318.53</span><span style="color:#a6e22e">MB</span>   <span style="color:#ae81ff">318.53</span><span style="color:#a6e22e">MB</span>     <span style="color:#ae81ff">83</span>: <span style="color:#a6e22e">input</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">NewBuffer</span>(<span style="color:#a6e22e">data</span>)
-        .          .     <span style="color:#ae81ff">84</span>:
-        .          .     <span style="color:#ae81ff">85</span>: <span style="color:#75715e">// The number of bytes we are looking for.
-</span><span style="color:#75715e"></span>        .          .     <span style="color:#ae81ff">86</span>: <span style="color:#a6e22e">size</span> <span style="color:#f92672">:=</span> len(<span style="color:#a6e22e">find</span>)
-        .          .     <span style="color:#ae81ff">87</span>:
-        .          .     <span style="color:#ae81ff">88</span>: <span style="color:#75715e">// Declare the buffers we need to process the stream.
-</span><span style="color:#75715e"></span>  <span style="color:#ae81ff">16.50</span><span style="color:#a6e22e">MB</span>    <span style="color:#ae81ff">16.50</span><span style="color:#a6e22e">MB</span>     <span style="color:#ae81ff">89</span>: <span style="color:#a6e22e">buf</span> <span style="color:#f92672">:=</span> make([]<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">size</span>)
-        .          .     <span style="color:#ae81ff">90</span>: <span style="color:#a6e22e">end</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">size</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>
-        .          .     <span style="color:#ae81ff">91</span>:
-        .          .     <span style="color:#ae81ff">92</span>: <span style="color:#75715e">// Read in an initial number of bytes we need to get started.
-</span><span style="color:#75715e"></span>        .          .     <span style="color:#ae81ff">93</span>: <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">n</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">ReadFull</span>(<span style="color:#a6e22e">input</span>, <span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">end</span>]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">n</span> &lt; <span style="color:#a6e22e">end</span> {
-        .          .     <span style="color:#ae81ff">94</span>:       <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">n</span>])
-(<span style="color:#a6e22e">pprof</span>) <span style="color:#a6e22e">_</span>
-</code></pre></div><p>分析信息展示了 <code>input</code> 变量和 <code>buf</code> slice在堆上创建。</p>
-<p><code>input</code> 变量是指针，即 <code>input</code> 指向的 <code>bytes.Buffer</code> 值分配在堆上。flat列（pprof输出的第一列）展示由于 <code>algOne</code> 函数共享导致变量逃逸，而 <code>algOne</code> 函数在 benchmark 中调用，我们用 <code>list  Benchmark</code> 函数看一下 Benchmark 的内存分配。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">(<span style="color:#a6e22e">pprof</span>) <span style="color:#a6e22e">list</span> <span style="color:#a6e22e">Benchmark</span>
-<span style="color:#a6e22e">Total</span>: <span style="color:#ae81ff">335.03</span><span style="color:#a6e22e">MB</span>
-<span style="color:#a6e22e">ROUTINE</span> <span style="color:#f92672">========================</span> <span style="color:#f92672">.../</span><span style="color:#a6e22e">memcpu</span>.<span style="color:#a6e22e">BenchmarkAlgorithmOne</span> <span style="color:#a6e22e">in</span> <span style="color:#a6e22e">code</span><span style="color:#f92672">/</span><span style="color:#66d9ef">go</span><span style="color:#f92672">/</span><span style="color:#a6e22e">src</span><span style="color:#f92672">/.../</span><span style="color:#a6e22e">memcpu</span><span style="color:#f92672">/</span><span style="color:#a6e22e">stream_test</span>.<span style="color:#66d9ef">go</span>
-        <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">335.03</span><span style="color:#a6e22e">MB</span> (<span style="color:#a6e22e">flat</span>, <span style="color:#a6e22e">cum</span>)   <span style="color:#ae81ff">100</span><span style="color:#f92672">%</span> <span style="color:#a6e22e">of</span> <span style="color:#a6e22e">Total</span>
-        .          .     <span style="color:#ae81ff">18</span>: <span style="color:#a6e22e">find</span> <span style="color:#f92672">:=</span> []byte(<span style="color:#e6db74">&#34;elvis&#34;</span>)
-        .          .     <span style="color:#ae81ff">19</span>: <span style="color:#a6e22e">repl</span> <span style="color:#f92672">:=</span> []byte(<span style="color:#e6db74">&#34;Elvis&#34;</span>)
-        .          .     <span style="color:#ae81ff">20</span>:
-        .          .     <span style="color:#ae81ff">21</span>: <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">ResetTimer</span>()
-        .          .     <span style="color:#ae81ff">22</span>:
-        .   <span style="color:#ae81ff">335.03</span><span style="color:#a6e22e">MB</span>     <span style="color:#ae81ff">23</span>: <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">i</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">0</span>; <span style="color:#a6e22e">i</span> &lt; <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">N</span>; <span style="color:#a6e22e">i</span><span style="color:#f92672">++</span> {
-        .          .     <span style="color:#ae81ff">24</span>:       <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Reset</span>()
-        .          .     <span style="color:#ae81ff">25</span>:       <span style="color:#a6e22e">algOne</span>(<span style="color:#a6e22e">in</span>, <span style="color:#a6e22e">find</span>, <span style="color:#a6e22e">repl</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">output</span>)
-        .          .     <span style="color:#ae81ff">26</span>: }
-        .          .     <span style="color:#ae81ff">27</span>:}
-        .          .     <span style="color:#ae81ff">28</span>:
-(<span style="color:#a6e22e">pprof</span>) <span style="color:#a6e22e">_</span>
-</code></pre></div><p>cum列（pprof信息的第二列）只有一个值，所以 Benchmark 函数没有直接进行内存分配，内存分配全部发生在for循环中。pprof 工具只能分析出有变量逃逸，我们需要通过 <code>go build gcflags &quot;-m -m&quot;</code> 命令来看一下 <code>bytes.Buffer</code> 的值为什么会发生逃逸。</p>
-<h2 id="编译器报告compiler-reporting">编译器报告（Compiler Reporting）</h2>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#960050;background-color:#1e0010">$</span> <span style="color:#66d9ef">go</span> <span style="color:#a6e22e">build</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">gcflags</span> <span style="color:#e6db74">&#34;-m -m&#34;</span>
-</code></pre></div><p><code>go build</code> 输出信息很多，由于是在第83行创建的 <code>bytes.buffer</code> 值，所以我们只关注 <code>stream.go:83。</code></p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>: <span style="color:#a6e22e">inlining</span> <span style="color:#a6e22e">call</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">NewBuffer</span> <span style="color:#66d9ef">func</span>([]<span style="color:#66d9ef">byte</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span> { <span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span> <span style="color:#a6e22e">literal</span> }
-
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>: <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span> <span style="color:#a6e22e">literal</span> <span style="color:#a6e22e">escapes</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">heap</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>:   <span style="color:#a6e22e">from</span> <span style="color:#960050;background-color:#1e0010">~</span><span style="color:#a6e22e">r0</span> (<span style="color:#a6e22e">assign</span><span style="color:#f92672">-</span><span style="color:#a6e22e">pair</span>) <span style="color:#a6e22e">at</span> .<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>:   <span style="color:#a6e22e">from</span> <span style="color:#a6e22e">input</span> (<span style="color:#a6e22e">assigned</span>) <span style="color:#a6e22e">at</span> .<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>:   <span style="color:#a6e22e">from</span> <span style="color:#a6e22e">input</span> (<span style="color:#66d9ef">interface</span><span style="color:#f92672">-</span><span style="color:#a6e22e">converted</span>) <span style="color:#a6e22e">at</span> .<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">93</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>:   <span style="color:#a6e22e">from</span> <span style="color:#a6e22e">input</span> (<span style="color:#a6e22e">passed</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">call</span>[<span style="color:#a6e22e">argument</span> <span style="color:#a6e22e">escapes</span>]) <span style="color:#a6e22e">at</span> .<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">93</span>
-</code></pre></div><p>从第一行信息可以看出来，<code>bytes.Buffer</code> 值一开始并没逃逸，<code>bytes.NewBuffer</code> 函数返回 <code>bytes.Buffer</code> 值的地址，接下来的5行信息展示了第93行导致 <code>bytes.Buffer</code> 值从<code>algOne</code> 栈逃逸，<code>input</code> 变量被赋值给一个接口变量。</p>
-<h2 id="接口interface">接口（interface）</h2>
-<p><code>algOne</code> 函数的第 93 行代码调用 <code>io.ReadFull</code> 函数造成了接口赋值。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Reader</span> <span style="color:#66d9ef">interface</span> {
-      <span style="color:#a6e22e">Read</span>(<span style="color:#a6e22e">p</span> []<span style="color:#66d9ef">byte</span>) (<span style="color:#a6e22e">n</span> <span style="color:#66d9ef">int</span>, <span style="color:#a6e22e">err</span> <span style="color:#66d9ef">error</span>)
-}
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">ReadFull</span>(<span style="color:#a6e22e">r</span> <span style="color:#a6e22e">Reader</span>, <span style="color:#a6e22e">buf</span> []<span style="color:#66d9ef">byte</span>) (<span style="color:#a6e22e">n</span> <span style="color:#66d9ef">int</span>, <span style="color:#a6e22e">err</span> <span style="color:#66d9ef">error</span>) {
-      <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ReadAtLeast</span>(<span style="color:#a6e22e">r</span>, <span style="color:#a6e22e">buf</span>, len(<span style="color:#a6e22e">buf</span>))
-}
-</code></pre></div><p>通过 <code>ReadFull</code> 函数代码我们发现，<code>bytes.Buffer</code> 的指针变量赋值给了 Reader 接口。现在我们知道了使用接口变量的开销：分配和重定向。所以如果没有必须的使用接口变量的原因，可以不使用接口变量。</p>
-<p>修改 <code>algOne</code> 函数，直接用 <code>io</code> 包的 <code>Read</code> 函数来代替 <code>ReadFull</code> 函数。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">import</span> (
-    <span style="color:#e6db74">&#34;bytes&#34;</span>
-    <span style="color:#e6db74">&#34;fmt&#34;</span>
-    <span style="color:#a6e22e">_</span> <span style="color:#e6db74">&#34;io&#34;</span>
-)
-
-<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">algOne</span>(<span style="color:#a6e22e">data</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">find</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">repl</span> []<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">output</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span>) {
-
-    <span style="color:#75715e">// Use a bytes Buffer to provide a stream to process.
-</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">input</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">NewBuffer</span>(<span style="color:#a6e22e">data</span>)
-
-    <span style="color:#75715e">// The number of bytes we are looking for.
-</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">size</span> <span style="color:#f92672">:=</span> len(<span style="color:#a6e22e">find</span>)
-
-    <span style="color:#75715e">// Declare the buffers we need to process the stream.
-</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">buf</span> <span style="color:#f92672">:=</span> make([]<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">size</span>)
-    <span style="color:#a6e22e">end</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">size</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>
-
-    <span style="color:#75715e">// Read in an initial number of bytes we need to get started.
-</span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">n</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">input</span>.<span style="color:#a6e22e">Read</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">end</span>]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">n</span> &lt; <span style="color:#a6e22e">end</span> {
-        <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">n</span>])
-        <span style="color:#66d9ef">return</span>
-    }
-
-    <span style="color:#66d9ef">for</span> {
-
-        <span style="color:#75715e">// Read in one byte from the input stream.
-</span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">input</span>.<span style="color:#a6e22e">Read</span>(<span style="color:#a6e22e">buf</span>[<span style="color:#a6e22e">end</span>:]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
-
-            <span style="color:#75715e">// Flush the reset of the bytes we have.
-</span><span style="color:#75715e"></span>            <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">end</span>])
-            <span style="color:#66d9ef">return</span>
-        }
-
-        <span style="color:#75715e">// If we have a match, replace the bytes.
-</span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Compare</span>(<span style="color:#a6e22e">buf</span>, <span style="color:#a6e22e">find</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span> {
-            <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">repl</span>)
-
-            <span style="color:#75715e">// Read a new initial number of bytes.
-</span><span style="color:#75715e"></span>            <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">n</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">input</span>.<span style="color:#a6e22e">Read</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">end</span>]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">n</span> &lt; <span style="color:#a6e22e">end</span> {
-                <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">buf</span>[:<span style="color:#a6e22e">n</span>])
-                <span style="color:#66d9ef">return</span>
-            }
-
-            <span style="color:#66d9ef">continue</span>
-        }
-
-        <span style="color:#75715e">// Write the front byte since it has been compared.
-</span><span style="color:#75715e"></span>        <span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">WriteByte</span>(<span style="color:#a6e22e">buf</span>[<span style="color:#ae81ff">0</span>])
-
-        <span style="color:#75715e">// Slice that front byte out.
-</span><span style="color:#75715e"></span>        copy(<span style="color:#a6e22e">buf</span>, <span style="color:#a6e22e">buf</span>[<span style="color:#ae81ff">1</span>:])
-    }
-}
-</code></pre></div><p>再次运行 benchmark，每次操作的内存分配次数变成了一次，<code>bytes.Buffer</code> 变量不再逃逸了。性能提升了29%（从 2570 ns/op 到 1814 ns/op），</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#960050;background-color:#1e0010">$</span> <span style="color:#66d9ef">go</span> <span style="color:#a6e22e">test</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">run</span> <span style="color:#a6e22e">none</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">bench</span> <span style="color:#a6e22e">AlgorithmOne</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">benchtime</span> <span style="color:#ae81ff">3</span><span style="color:#a6e22e">s</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">benchmem</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">memprofile</span> <span style="color:#a6e22e">mem</span>.<span style="color:#a6e22e">out</span>
-<span style="color:#a6e22e">BenchmarkAlgorithmOne</span><span style="color:#f92672">-</span><span style="color:#ae81ff">8</span>     <span style="color:#ae81ff">2000000</span>      <span style="color:#ae81ff">1814</span> <span style="color:#a6e22e">ns</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>      <span style="color:#ae81ff">5</span> <span style="color:#a6e22e">B</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>           <span style="color:#ae81ff">1</span> <span style="color:#a6e22e">allocs</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>
-</code></pre></div><p>我们继续来看 <code>buf</code> 变量。</p>
-<h2 id="栈帧stack-frames">栈帧（Stack Frames）</h2>
-<p>再次运行 <code>go build -gcflags &quot;-m -m&quot;</code>，并关注 <code>stream.go:89</code> 。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#960050;background-color:#1e0010">$</span> <span style="color:#66d9ef">go</span> <span style="color:#a6e22e">build</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">gcflags</span> <span style="color:#e6db74">&#34;-m -m&#34;</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">89</span>: make([]<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">size</span>) <span style="color:#a6e22e">escapes</span> <span style="color:#a6e22e">to</span> <span style="color:#a6e22e">heap</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">89</span>:   <span style="color:#a6e22e">from</span> make([]<span style="color:#66d9ef">byte</span>, <span style="color:#a6e22e">size</span>) (<span style="color:#a6e22e">too</span> <span style="color:#a6e22e">large</span> <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">stack</span>) <span style="color:#a6e22e">at</span> .<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">89</span>
-</code></pre></div><p>这里说 slice 底层的数组对于栈来说太大了（too large for stack）。这个信息有些误导性，其实不是因为数组太大，而是因为编译器在编译阶段不知道数组的大小。</p>
-<p>只有编译器在编译期间知道变量的大小的情况下，变量才会被分配在栈上，这是因为函数栈帧的大小是在编译阶段确定的，如果编译器在编译过程中不知道变量的大小，那么变量就会分配到堆上。</p>
-<p>修改 89 行代码，将 <code>buf</code> 变量的初始长度设置为 5，再次运行 benchmark。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#a6e22e">buf</span> <span style="color:#f92672">:=</span> make([]<span style="color:#66d9ef">byte</span>, <span style="color:#ae81ff">5</span>)
-</code></pre></div><p>内存分配次数变成了 0 次。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#960050;background-color:#1e0010">$</span> <span style="color:#66d9ef">go</span> <span style="color:#a6e22e">test</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">run</span> <span style="color:#a6e22e">none</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">bench</span> <span style="color:#a6e22e">AlgorithmOne</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">benchtime</span> <span style="color:#ae81ff">3</span><span style="color:#a6e22e">s</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">benchmem</span>
-<span style="color:#a6e22e">BenchmarkAlgorithmOne</span><span style="color:#f92672">-</span><span style="color:#ae81ff">8</span>   <span style="color:#ae81ff">3000000</span>   <span style="color:#ae81ff">1720</span> <span style="color:#a6e22e">ns</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>     <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">B</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>       <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">allocs</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>
-</code></pre></div><p>再次运行 <code>go build -gcflags &quot;-m -m&quot;</code> 会发现，所有变量都没逃逸。</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#960050;background-color:#1e0010">$</span> <span style="color:#66d9ef">go</span> <span style="color:#a6e22e">build</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">gcflags</span> <span style="color:#e6db74">&#34;-m -m&#34;</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">83</span>: <span style="color:#a6e22e">algOne</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span> <span style="color:#a6e22e">literal</span> <span style="color:#a6e22e">does</span> <span style="color:#a6e22e">not</span> <span style="color:#a6e22e">escape</span>
-.<span style="color:#f92672">/</span><span style="color:#a6e22e">stream</span>.<span style="color:#66d9ef">go</span>:<span style="color:#ae81ff">89</span>: <span style="color:#a6e22e">algOne</span> make([]<span style="color:#66d9ef">byte</span>, <span style="color:#ae81ff">5</span>) <span style="color:#a6e22e">does</span> <span style="color:#a6e22e">not</span> <span style="color:#a6e22e">escape</span>
-</code></pre></div><p>但是除非能确认 slice 的长度，否则我们不能通过硬编码来指定 slice 的初始大小，所以这段代码 <code>algOne</code> 函数可能需要一次内存分配。</p>
-<h2 id="内存分配和性能allocations-and-performance">内存分配和性能（Allocations and Performance）</h2>
-<p>比较一下每次优化过程中的新能提升：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#a6e22e">Before</span> <span style="color:#a6e22e">any</span> <span style="color:#a6e22e">optimization</span>
-<span style="color:#a6e22e">BenchmarkAlgorithmOne</span><span style="color:#f92672">-</span><span style="color:#ae81ff">8</span>   <span style="color:#ae81ff">2000000</span>    <span style="color:#ae81ff">2570</span> <span style="color:#a6e22e">ns</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>   <span style="color:#ae81ff">117</span> <span style="color:#a6e22e">B</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>        <span style="color:#ae81ff">2</span> <span style="color:#a6e22e">allocs</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>
-
-<span style="color:#a6e22e">Removing</span> <span style="color:#a6e22e">the</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span> <span style="color:#a6e22e">allocation</span>
-<span style="color:#a6e22e">BenchmarkAlgorithmOne</span><span style="color:#f92672">-</span><span style="color:#ae81ff">8</span>   <span style="color:#ae81ff">2000000</span>    <span style="color:#ae81ff">1814</span> <span style="color:#a6e22e">ns</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>     <span style="color:#ae81ff">5</span> <span style="color:#a6e22e">B</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>        <span style="color:#ae81ff">1</span> <span style="color:#a6e22e">allocs</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>
-
-<span style="color:#a6e22e">Removing</span> <span style="color:#a6e22e">the</span> <span style="color:#a6e22e">backing</span> <span style="color:#a6e22e">array</span> <span style="color:#a6e22e">allocation</span>
-<span style="color:#a6e22e">BenchmarkAlgorithmOne</span><span style="color:#f92672">-</span><span style="color:#ae81ff">8</span>   <span style="color:#ae81ff">3000000</span>    <span style="color:#ae81ff">1720</span> <span style="color:#a6e22e">ns</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>     <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">B</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>        <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">allocs</span><span style="color:#f92672">/</span><span style="color:#a6e22e">op</span>
-</code></pre></div><p>优化掉 <code>bytes.Buffer</code> 变量的内存分配之后，提升了大约 29% 的性能，所有内存分配都又划掉之后，提升了大约 33% 的性能。由此可见，内存分配是影响应用程序性能的因素之一。</p>
-<h2 id="结论">结论</h2>
-<p>golang有一些很方便的工具来分析内存，基于这些工具，可以重构代码使得变量只分配在栈空间上，而不需要重新分配到堆上。写代码时不要把性能作为第一优先级，因为你并不想在代码序时一直猜测代码的性能，写正确的代码才是第一优先级。我们首先要关注的是完整性、可读性和简单性。有了可以运行的程序，再来确定程序性能是否满足要求。假如程序还不够快，可以使用golang提供的工具来查找和解决性能问题。</p>
-<h2 id="参考资料">参考资料</h2>
-<ol>
-<li><a href="https://www.ardanlabs.com/blog/2017/06/language-mechanics-on-memory-profiling.html">https://www.ardanlabs.com/blog/2017/06/language-mechanics-on-memory-profiling.html</a></li>
-</ol>
-
-
-</article>
-
-
-<section class="post-nav">
-    <ul>
-        
-        <li>
-            <a href="https://sunpe.github.io/posts/2020-07-31-golang-escape/"><i class="fa fa-chevron-circle-left"></i> golang语言机制之逃逸分析</a>
-        </li>
-        
-        
-        <li>
-            <a href="https://sunpe.github.io/posts/2020-09-26-hot-account/">热点账户处理 <i class="fa fa-chevron-circle-right"></i> </a>
-        </li>
-        
-    </ul>
-</section>
-  
-    
-    
-  
-
-
-
-
-
-</main>
-    <footer>
-        <h6>Copyright © 2020 - sunpeng |
-            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
-            <a href="https://sunpe.github.io/index.xml">Subscribe </a></h6>
-    </footer>
-</div>
-<script src="https://sunpe.github.io/js/scripts.js"></script>
-
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-161915530-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-<script id="baidu_push">
-  (function(){
-    if (window.location.hostname === 'localhost') return;
-    var bp = document.createElement('script'); bp.async = true;
-    var curProtocol = window.location.protocol.split(':')[0];
-    if (curProtocol === 'https') {
-      bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
-    }
-    else {
-      bp.src = 'http://push.zhanzhang.baidu.com/push.js';
-    }
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(bp, s);
-  })();
-</script>
-</body>
-
-</html>
-
+</code></pre><p>源码在 memcpu 目录中，<code>algOne</code> 函数在 stream.go 文件中，benchmark 测试在 stream_test.go 文件中。mem.out 和 memcpu.test 是新生成的文件，内容是profile数据，有了这俩文件，就可以使用 <code>pprof</code> 工具进行分析了</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>$</span> <span style=color:#66d9ef>go</span> <span style=color:#a6e22e>tool</span> <span style=color:#a6e22e>pprof</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>alloc_space</span> <span style=color:#a6e22e>memcpu</span>.<span style=color:#a6e22e>test</span> <span style=color:#a6e22e>mem</span>.<span style=color:#a6e22e>out</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>Entering</span> <span style=color:#a6e22e>interactive</span> <span style=color:#a6e22e>mode</span> (<span style=color:#66d9ef>type</span> <span style=color:#e6db74>&#34;help&#34;</span> <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>commands</span>)
+</span></span><span style=display:flex><span>(<span style=color:#a6e22e>pprof</span>) <span style=color:#a6e22e>_</span>
+</span></span></code></pre></div><p>这里我们使用 <code>-alloc_space</code> 来分析内存分配。我们使用 <code>list algOne</code> 命令查看 <code>algOne</code> 函数的内存分配。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span>(<span style=color:#a6e22e>pprof</span>) <span style=color:#a6e22e>list</span> <span style=color:#a6e22e>algOne</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>Total</span>: <span style=color:#ae81ff>335.03</span><span style=color:#a6e22e>MB</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>ROUTINE</span> <span style=color:#f92672>========================</span> <span style=color:#f92672>.../</span><span style=color:#a6e22e>memcpu</span>.<span style=color:#a6e22e>algOne</span> <span style=color:#a6e22e>in</span> <span style=color:#a6e22e>code</span><span style=color:#f92672>/</span><span style=color:#66d9ef>go</span><span style=color:#f92672>/</span><span style=color:#a6e22e>src</span><span style=color:#f92672>/.../</span><span style=color:#a6e22e>memcpu</span><span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>
+</span></span><span style=display:flex><span> <span style=color:#ae81ff>335.03</span><span style=color:#a6e22e>MB</span>   <span style=color:#ae81ff>335.03</span><span style=color:#a6e22e>MB</span> (<span style=color:#a6e22e>flat</span>, <span style=color:#a6e22e>cum</span>)   <span style=color:#ae81ff>100</span><span style=color:#f92672>%</span> <span style=color:#a6e22e>of</span> <span style=color:#a6e22e>Total</span>
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>78</span>:
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>79</span>:<span style=color:#75715e>// algOne is one way to solve the problem.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        .          .     <span style=color:#ae81ff>80</span>:<span style=color:#66d9ef>func</span> <span style=color:#a6e22e>algOne</span>(<span style=color:#a6e22e>data</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>find</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>repl</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>output</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span>) {
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>81</span>:
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>82</span>: <span style=color:#75715e>// Use a bytes Buffer to provide a stream to process.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span> <span style=color:#ae81ff>318.53</span><span style=color:#a6e22e>MB</span>   <span style=color:#ae81ff>318.53</span><span style=color:#a6e22e>MB</span>     <span style=color:#ae81ff>83</span>: <span style=color:#a6e22e>input</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>NewBuffer</span>(<span style=color:#a6e22e>data</span>)
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>84</span>:
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>85</span>: <span style=color:#75715e>// The number of bytes we are looking for.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        .          .     <span style=color:#ae81ff>86</span>: <span style=color:#a6e22e>size</span> <span style=color:#f92672>:=</span> len(<span style=color:#a6e22e>find</span>)
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>87</span>:
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>88</span>: <span style=color:#75715e>// Declare the buffers we need to process the stream.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>  <span style=color:#ae81ff>16.50</span><span style=color:#a6e22e>MB</span>    <span style=color:#ae81ff>16.50</span><span style=color:#a6e22e>MB</span>     <span style=color:#ae81ff>89</span>: <span style=color:#a6e22e>buf</span> <span style=color:#f92672>:=</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>size</span>)
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>90</span>: <span style=color:#a6e22e>end</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>size</span> <span style=color:#f92672>-</span> <span style=color:#ae81ff>1</span>
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>91</span>:
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>92</span>: <span style=color:#75715e>// Read in an initial number of bytes we need to get started.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        .          .     <span style=color:#ae81ff>93</span>: <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>n</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>ReadFull</span>(<span style=color:#a6e22e>input</span>, <span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>end</span>]); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> <span style=color:#f92672>||</span> <span style=color:#a6e22e>n</span> &lt; <span style=color:#a6e22e>end</span> {
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>94</span>:       <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>n</span>])
+</span></span><span style=display:flex><span>(<span style=color:#a6e22e>pprof</span>) <span style=color:#a6e22e>_</span>
+</span></span></code></pre></div><p>分析信息展示了 <code>input</code> 变量和 <code>buf</code> slice在堆上创建。</p><p><code>input</code> 变量是指针，即 <code>input</code> 指向的 <code>bytes.Buffer</code> 值分配在堆上。flat列（pprof输出的第一列）展示由于 <code>algOne</code> 函数共享导致变量逃逸，而 <code>algOne</code> 函数在 benchmark 中调用，我们用 <code>list Benchmark</code> 函数看一下 Benchmark 的内存分配。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span>(<span style=color:#a6e22e>pprof</span>) <span style=color:#a6e22e>list</span> <span style=color:#a6e22e>Benchmark</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>Total</span>: <span style=color:#ae81ff>335.03</span><span style=color:#a6e22e>MB</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>ROUTINE</span> <span style=color:#f92672>========================</span> <span style=color:#f92672>.../</span><span style=color:#a6e22e>memcpu</span>.<span style=color:#a6e22e>BenchmarkAlgorithmOne</span> <span style=color:#a6e22e>in</span> <span style=color:#a6e22e>code</span><span style=color:#f92672>/</span><span style=color:#66d9ef>go</span><span style=color:#f92672>/</span><span style=color:#a6e22e>src</span><span style=color:#f92672>/.../</span><span style=color:#a6e22e>memcpu</span><span style=color:#f92672>/</span><span style=color:#a6e22e>stream_test</span>.<span style=color:#66d9ef>go</span>
+</span></span><span style=display:flex><span>        <span style=color:#ae81ff>0</span>   <span style=color:#ae81ff>335.03</span><span style=color:#a6e22e>MB</span> (<span style=color:#a6e22e>flat</span>, <span style=color:#a6e22e>cum</span>)   <span style=color:#ae81ff>100</span><span style=color:#f92672>%</span> <span style=color:#a6e22e>of</span> <span style=color:#a6e22e>Total</span>
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>18</span>: <span style=color:#a6e22e>find</span> <span style=color:#f92672>:=</span> []byte(<span style=color:#e6db74>&#34;elvis&#34;</span>)
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>19</span>: <span style=color:#a6e22e>repl</span> <span style=color:#f92672>:=</span> []byte(<span style=color:#e6db74>&#34;Elvis&#34;</span>)
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>20</span>:
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>21</span>: <span style=color:#a6e22e>b</span>.<span style=color:#a6e22e>ResetTimer</span>()
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>22</span>:
+</span></span><span style=display:flex><span>        .   <span style=color:#ae81ff>335.03</span><span style=color:#a6e22e>MB</span>     <span style=color:#ae81ff>23</span>: <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> &lt; <span style=color:#a6e22e>b</span>.<span style=color:#a6e22e>N</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>24</span>:       <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Reset</span>()
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>25</span>:       <span style=color:#a6e22e>algOne</span>(<span style=color:#a6e22e>in</span>, <span style=color:#a6e22e>find</span>, <span style=color:#a6e22e>repl</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>output</span>)
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>26</span>: }
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>27</span>:}
+</span></span><span style=display:flex><span>        .          .     <span style=color:#ae81ff>28</span>:
+</span></span><span style=display:flex><span>(<span style=color:#a6e22e>pprof</span>) <span style=color:#a6e22e>_</span>
+</span></span></code></pre></div><p>cum列（pprof信息的第二列）只有一个值，所以 Benchmark 函数没有直接进行内存分配，内存分配全部发生在for循环中。pprof 工具只能分析出有变量逃逸，我们需要通过 <code>go build gcflags "-m -m"</code> 命令来看一下 <code>bytes.Buffer</code> 的值为什么会发生逃逸。</p><h2 id=编译器报告compiler-reporting>编译器报告（Compiler Reporting）</h2><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>$</span> <span style=color:#66d9ef>go</span> <span style=color:#a6e22e>build</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>gcflags</span> <span style=color:#e6db74>&#34;-m -m&#34;</span>
+</span></span></code></pre></div><p><code>go build</code> 输出信息很多，由于是在第83行创建的 <code>bytes.buffer</code> 值，所以我们只关注 <code>stream.go:83。</code></p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>: <span style=color:#a6e22e>inlining</span> <span style=color:#a6e22e>call</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>NewBuffer</span> <span style=color:#66d9ef>func</span>([]<span style=color:#66d9ef>byte</span>) <span style=color:#f92672>*</span><span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span> { <span style=color:#66d9ef>return</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span> <span style=color:#a6e22e>literal</span> }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>: <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span> <span style=color:#a6e22e>literal</span> <span style=color:#a6e22e>escapes</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>heap</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>:   <span style=color:#a6e22e>from</span> <span style=color:#960050;background-color:#1e0010>~</span><span style=color:#a6e22e>r0</span> (<span style=color:#a6e22e>assign</span><span style=color:#f92672>-</span><span style=color:#a6e22e>pair</span>) <span style=color:#a6e22e>at</span> .<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>:   <span style=color:#a6e22e>from</span> <span style=color:#a6e22e>input</span> (<span style=color:#a6e22e>assigned</span>) <span style=color:#a6e22e>at</span> .<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>:   <span style=color:#a6e22e>from</span> <span style=color:#a6e22e>input</span> (<span style=color:#66d9ef>interface</span><span style=color:#f92672>-</span><span style=color:#a6e22e>converted</span>) <span style=color:#a6e22e>at</span> .<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>93</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>:   <span style=color:#a6e22e>from</span> <span style=color:#a6e22e>input</span> (<span style=color:#a6e22e>passed</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>call</span>[<span style=color:#a6e22e>argument</span> <span style=color:#a6e22e>escapes</span>]) <span style=color:#a6e22e>at</span> .<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>93</span>
+</span></span></code></pre></div><p>从第一行信息可以看出来，<code>bytes.Buffer</code> 值一开始并没逃逸，<code>bytes.NewBuffer</code> 函数返回 <code>bytes.Buffer</code> 值的地址，接下来的5行信息展示了第93行导致 <code>bytes.Buffer</code> 值从<code>algOne</code> 栈逃逸，<code>input</code> 变量被赋值给一个接口变量。</p><h2 id=接口interface>接口（interface）</h2><p><code>algOne</code> 函数的第 93 行代码调用 <code>io.ReadFull</code> 函数造成了接口赋值。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>Reader</span> <span style=color:#66d9ef>interface</span> {
+</span></span><span style=display:flex><span>      <span style=color:#a6e22e>Read</span>(<span style=color:#a6e22e>p</span> []<span style=color:#66d9ef>byte</span>) (<span style=color:#a6e22e>n</span> <span style=color:#66d9ef>int</span>, <span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>ReadFull</span>(<span style=color:#a6e22e>r</span> <span style=color:#a6e22e>Reader</span>, <span style=color:#a6e22e>buf</span> []<span style=color:#66d9ef>byte</span>) (<span style=color:#a6e22e>n</span> <span style=color:#66d9ef>int</span>, <span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
+</span></span><span style=display:flex><span>      <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>ReadAtLeast</span>(<span style=color:#a6e22e>r</span>, <span style=color:#a6e22e>buf</span>, len(<span style=color:#a6e22e>buf</span>))
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>通过 <code>ReadFull</code> 函数代码我们发现，<code>bytes.Buffer</code> 的指针变量赋值给了 Reader 接口。现在我们知道了使用接口变量的开销：分配和重定向。所以如果没有必须的使用接口变量的原因，可以不使用接口变量。</p><p>修改直<code>algOne</code> 函数，接用 <code>io</code> 包的 <code>Read</code> 函数来代替 <code>ReadFull</code> 函数。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#f92672>import</span> (
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;bytes&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;fmt&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>_</span> <span style=color:#e6db74>&#34;io&#34;</span>
+</span></span><span style=display:flex><span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>algOne</span>(<span style=color:#a6e22e>data</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>find</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>repl</span> []<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>output</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span>) {
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Use a bytes Buffer to provide a stream to process.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#a6e22e>input</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>NewBuffer</span>(<span style=color:#a6e22e>data</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// The number of bytes we are looking for.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#a6e22e>size</span> <span style=color:#f92672>:=</span> len(<span style=color:#a6e22e>find</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Declare the buffers we need to process the stream.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#a6e22e>buf</span> <span style=color:#f92672>:=</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>size</span>)
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>end</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>size</span> <span style=color:#f92672>-</span> <span style=color:#ae81ff>1</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Read in an initial number of bytes we need to get started.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>n</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>input</span>.<span style=color:#a6e22e>Read</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>end</span>]); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> <span style=color:#f92672>||</span> <span style=color:#a6e22e>n</span> &lt; <span style=color:#a6e22e>end</span> {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>n</span>])
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> {
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Read in one byte from the input stream.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>input</span>.<span style=color:#a6e22e>Read</span>(<span style=color:#a6e22e>buf</span>[<span style=color:#a6e22e>end</span>:]); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>            <span style=color:#75715e>// Flush the reset of the bytes we have.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>            <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>end</span>])
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// If we have a match, replace the bytes.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Compare</span>(<span style=color:#a6e22e>buf</span>, <span style=color:#a6e22e>find</span>) <span style=color:#f92672>==</span> <span style=color:#ae81ff>0</span> {
+</span></span><span style=display:flex><span>            <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>repl</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>            <span style=color:#75715e>// Read a new initial number of bytes.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>            <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>n</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>input</span>.<span style=color:#a6e22e>Read</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>end</span>]); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> <span style=color:#f92672>||</span> <span style=color:#a6e22e>n</span> &lt; <span style=color:#a6e22e>end</span> {
+</span></span><span style=display:flex><span>                <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>Write</span>(<span style=color:#a6e22e>buf</span>[:<span style=color:#a6e22e>n</span>])
+</span></span><span style=display:flex><span>                <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>            }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>continue</span>
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Write the front byte since it has been compared.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        <span style=color:#a6e22e>output</span>.<span style=color:#a6e22e>WriteByte</span>(<span style=color:#a6e22e>buf</span>[<span style=color:#ae81ff>0</span>])
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Slice that front byte out.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        copy(<span style=color:#a6e22e>buf</span>, <span style=color:#a6e22e>buf</span>[<span style=color:#ae81ff>1</span>:])
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>再次运行 benchmark，每次操作的内存分配次数变成了一次，<code>bytes.Buffer</code> 变量不再逃逸了。性能提升了29%（从 2570 ns/op 到 1814 ns/op），</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>$</span> <span style=color:#66d9ef>go</span> <span style=color:#a6e22e>test</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>run</span> <span style=color:#a6e22e>none</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>bench</span> <span style=color:#a6e22e>AlgorithmOne</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>benchtime</span> <span style=color:#ae81ff>3</span><span style=color:#a6e22e>s</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>benchmem</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>memprofile</span> <span style=color:#a6e22e>mem</span>.<span style=color:#a6e22e>out</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>BenchmarkAlgorithmOne</span><span style=color:#f92672>-</span><span style=color:#ae81ff>8</span>     <span style=color:#ae81ff>2000000</span>      <span style=color:#ae81ff>1814</span> <span style=color:#a6e22e>ns</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>      <span style=color:#ae81ff>5</span> <span style=color:#a6e22e>B</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>           <span style=color:#ae81ff>1</span> <span style=color:#a6e22e>allocs</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>
+</span></span></code></pre></div><p>我们继续来看 <code>buf</code> 变量。</p><h2 id=栈帧stack-frames>栈帧（Stack Frames）</h2><p>再次运行 <code>go build -gcflags "-m -m"</code>，并关注 <code>stream.go:89</code> 。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>$</span> <span style=color:#66d9ef>go</span> <span style=color:#a6e22e>build</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>gcflags</span> <span style=color:#e6db74>&#34;-m -m&#34;</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>89</span>: make([]<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>size</span>) <span style=color:#a6e22e>escapes</span> <span style=color:#a6e22e>to</span> <span style=color:#a6e22e>heap</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>89</span>:   <span style=color:#a6e22e>from</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>size</span>) (<span style=color:#a6e22e>too</span> <span style=color:#a6e22e>large</span> <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>stack</span>) <span style=color:#a6e22e>at</span> .<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>89</span>
+</span></span></code></pre></div><p>这里说 slice 底层的数组对于栈来说太大了（too large for stack）。这个信息有些误导性，其实不是因为数组太大，而是因为编译器在编译阶段不知道数组的大小。</p><p>只有编译器在编译期间知道变量的大小的情况下，变量才会被分配在栈上，这是因为函数栈帧的大小是在编译阶段确定的，如果编译器在编译过程中不知道变量的大小，那么变量就会分配到堆上。</p><p>修改 89 行代码，将 <code>buf</code> 变量的初始长度设置为 5，再次运行 benchmark。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#a6e22e>buf</span> <span style=color:#f92672>:=</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#ae81ff>5</span>)
+</span></span></code></pre></div><p>内存分配次数变成了 0 次。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>$</span> <span style=color:#66d9ef>go</span> <span style=color:#a6e22e>test</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>run</span> <span style=color:#a6e22e>none</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>bench</span> <span style=color:#a6e22e>AlgorithmOne</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>benchtime</span> <span style=color:#ae81ff>3</span><span style=color:#a6e22e>s</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>benchmem</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>BenchmarkAlgorithmOne</span><span style=color:#f92672>-</span><span style=color:#ae81ff>8</span>   <span style=color:#ae81ff>3000000</span>   <span style=color:#ae81ff>1720</span> <span style=color:#a6e22e>ns</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>     <span style=color:#ae81ff>0</span> <span style=color:#a6e22e>B</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>       <span style=color:#ae81ff>0</span> <span style=color:#a6e22e>allocs</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>
+</span></span></code></pre></div><p>再次运行 <code>go build -gcflags "-m -m"</code> 会发现，所有变量都没逃逸。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>$</span> <span style=color:#66d9ef>go</span> <span style=color:#a6e22e>build</span> <span style=color:#f92672>-</span><span style=color:#a6e22e>gcflags</span> <span style=color:#e6db74>&#34;-m -m&#34;</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>83</span>: <span style=color:#a6e22e>algOne</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span> <span style=color:#a6e22e>literal</span> <span style=color:#a6e22e>does</span> <span style=color:#a6e22e>not</span> <span style=color:#a6e22e>escape</span>
+</span></span><span style=display:flex><span>.<span style=color:#f92672>/</span><span style=color:#a6e22e>stream</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>89</span>: <span style=color:#a6e22e>algOne</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#ae81ff>5</span>) <span style=color:#a6e22e>does</span> <span style=color:#a6e22e>not</span> <span style=color:#a6e22e>escape</span>
+</span></span></code></pre></div><p>但是除非能确认 slice 的长度，否则我们不能通过硬编码来指定 slice 的初始大小，所以这段代码 <code>algOne</code> 函数可能需要一次内存分配。</p><h2 id=内存分配和性能allocations-and-performance>内存分配和性能（Allocations and Performance）</h2><p>比较一下每次优化过程中的新能提升：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#a6e22e>Before</span> <span style=color:#a6e22e>any</span> <span style=color:#a6e22e>optimization</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>BenchmarkAlgorithmOne</span><span style=color:#f92672>-</span><span style=color:#ae81ff>8</span>   <span style=color:#ae81ff>2000000</span>    <span style=color:#ae81ff>2570</span> <span style=color:#a6e22e>ns</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>   <span style=color:#ae81ff>117</span> <span style=color:#a6e22e>B</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>        <span style=color:#ae81ff>2</span> <span style=color:#a6e22e>allocs</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>Removing</span> <span style=color:#a6e22e>the</span> <span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>Buffer</span> <span style=color:#a6e22e>allocation</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>BenchmarkAlgorithmOne</span><span style=color:#f92672>-</span><span style=color:#ae81ff>8</span>   <span style=color:#ae81ff>2000000</span>    <span style=color:#ae81ff>1814</span> <span style=color:#a6e22e>ns</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>     <span style=color:#ae81ff>5</span> <span style=color:#a6e22e>B</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>        <span style=color:#ae81ff>1</span> <span style=color:#a6e22e>allocs</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>Removing</span> <span style=color:#a6e22e>the</span> <span style=color:#a6e22e>backing</span> <span style=color:#a6e22e>array</span> <span style=color:#a6e22e>allocation</span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>BenchmarkAlgorithmOne</span><span style=color:#f92672>-</span><span style=color:#ae81ff>8</span>   <span style=color:#ae81ff>3000000</span>    <span style=color:#ae81ff>1720</span> <span style=color:#a6e22e>ns</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>     <span style=color:#ae81ff>0</span> <span style=color:#a6e22e>B</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>        <span style=color:#ae81ff>0</span> <span style=color:#a6e22e>allocs</span><span style=color:#f92672>/</span><span style=color:#a6e22e>op</span>
+</span></span></code></pre></div><p>优化掉 <code>bytes.Buffer</code> 变量的内存分配之后，提升了大约 29% 的性能，所有内存分配都又划掉之后，提升了大约 33% 的性能。由此可见，内存分配是影响应用程序性能的因素之一。</p><h2 id=结论>结论</h2><p>golang有一些很方便的工具来分析内存，基于这些工具，可以重构代码使得变量只分配在栈空间上，而不需要重新分配到堆上。写代码时不要把性能作为第一优先级，因为你并不想在代码序时一直猜测代码的性能，写正确的代码才是第一优先级。我们首先要关注的是完整性、可读性和简单性。有了可以运行的程序，再来确定程序性能是否满足要求。假如程序还不够快，可以使用golang提供的工具来查找和解决性能问题。</p><h2 id=参考资料>参考资料</h2><ol><li><a href=https://www.ardanlabs.com/blog/2017/06/language-mechanics-on-memory-profiling.html>https://www.ardanlabs.com/blog/2017/06/language-mechanics-on-memory-profiling.html</a></li></ol></article><section class=post-nav><ul><li><a href=https://sunpe.github.io/posts/2020-07-31-golang-escape/><i class="fa fa-chevron-circle-left"></i> golang语言机制之逃逸分析</a></li><li><a href=https://sunpe.github.io/posts/2020-09-26-hot-account/>热点账户处理 <i class="fa fa-chevron-circle-right"></i></a></li></ul></section></main><footer><ul><li><h6>Copyright © 2022 - sunpeng |
+Rendered by <a href=https://gohugo.io title=Hugo>Hugo</a> |
+<a href=https://sunpe.github.ioindex.xml>Subscribe</a></h6></li></ul></footer></div><script src=https://sunpe.github.io/js/scripts.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga("create","UA-161915530-1","auto"),ga("send","pageview"))</script><script async src=https://www.google-analytics.com/analytics.js></script>
+<script id=baidu_analytics>var _hmt=_hmt||[];(function(){if(window.location.hostname==="localhost")return;var t,e=document.createElement("script");e.async=!0,e.src="https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script><script id=baidu_push>(function(){if(window.location.hostname==="localhost")return;var t,n,e=document.createElement("script");e.async=!0,n=window.location.protocol.split(":")[0],n==="https"?e.src="https://zz.bdstatic.com/linksubmit/push.js":e.src="http://push.zhanzhang.baidu.com/push.js",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script></body></html>
