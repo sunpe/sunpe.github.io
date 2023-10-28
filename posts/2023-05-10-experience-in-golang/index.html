@@ -1,0 +1,94 @@
+<!doctype html><html lang=en><head><title>golang 踩坑总结 - hello world</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="stay foolish, stay hungry"><meta name=author content="sunpeng"><meta name=baidu-site-verification content="vWQN0uJLC2"><meta property="og:title" content="golang 踩坑总结"><meta property="og:description" content="groutine 泄漏 goroutine 是用户态的轻量级协程，在 golang 中开启 groutine 开销很小，能轻松开启成千上万的 goroutine。但是如果开启的 groutine 长驻内存，并且还不断的开启新的 goroutine，那么可能会导致内存泄漏问题。"><meta property="og:type" content="article"><meta property="og:url" content="https://sunpe.github.io/posts/2023-05-10-experience-in-golang/"><meta property="article:section" content="posts"><meta property="article:published_time" content="2023-05-10T22:00:00+08:00"><meta property="article:modified_time" content="2023-05-10T22:00:00+08:00"><meta name=generator content="Hugo 0.119.0"><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin=anonymous><link rel=stylesheet href=https://sunpe.github.io/fontawesome/css/all.min.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda"><link rel=stylesheet type=text/css href=https://sunpe.github.io/css/styles.css></head><body><div id=container><header><h1><a href=https://sunpe.github.io/>hello world</a></h1><ul id=social-media></ul><p><em>stay foolish, stay hungry</em></p></header><nav><ul><li><a href=https://sunpe.github.io/><i class="fa-li fa fa-lg"></i><span>Home</span></a></li><li><a href=https://sunpe.github.io/posts/><i class="fa-li fa fa-lg"></i><span>Posts</span></a></li><li><a href=https://sunpe.github.io/tags/><i class="fa-li fa fa-lg"></i><span>Tags</span></a></li><li><a href=https://sunpe.github.io/categories/><i class="fa-li fa fa-lg"></i><span>Categories</span></a></li><li><a href=https://sunpe.github.io/about/><i class="fa-li fa fa-lg"></i><span>About</span></a></li></ul></nav><main><article><h1>golang 踩坑总结</h1><aside><ul><li><time class=post-date datetime=2023-05-10T22:00:00+08:00>May 10, 2023</time></li><li>Categories:
+<em><a href=https://sunpe.github.io/categories/golang>golang</a></em></li><li>Tags:
+<em><a href=https://sunpe.github.io/tags/golang>#golang</a></em></li><li>3 minutes read</li></ul></aside><div class=featured_image><a href=https://sunpe.github.io/posts/2023-05-10-experience-in-golang/ title="golang 踩坑总结"><img src></a></div><h1 id=groutine-泄漏>groutine 泄漏</h1><p>goroutine 是用户态的轻量级协程，在 golang 中开启 groutine 开销很小，能轻松开启成千上万的 goroutine。但是如果开启的 groutine 长驻内存，并且还不断的开启新的 goroutine，那么可能会导致内存泄漏问题。</p><p>程序 1 展示了一种常见的 goroutine 泄漏的 case。<code>leak</code> 函数中，创建一个 channel，并启动一个 goroutine 来消费这个 channel。这个 goroutine 结束的唯一条件是关闭 ch。但是 leak 函数返回之后，ch 没有被关闭，这样 goroutine 会一直在内存中，随着 leak 函数调用次数的增多，占用内存也随着增长，最终导致内存泄漏。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 1 
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>leak</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>ch</span> <span style=color:#f92672>:=</span> make(<span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>int</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>for</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>ch</span> { }
+</span></span><span style=display:flex><span>    }()    
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>开启 goroutine 之前，必须要清楚 goroutine 的退出条件。</p><h1 id=在循环中-goroutine-func-直接使用字面量>在循环中 goroutine func 直接使用字面量</h1><p>这是刚开始写 goroutine 时特别容易犯的一个问题，在循环中 goroutine func 直接使用字面量，可能会导致一些不可预期的行为。简单看一个 demo。程序 2 中，原想输出 <code>array</code> 中的值，但最终输出的可能不确定，在我的机器上是 <code>55555</code>。这段代码在 IDE 中会有 <code>Loop variables captured by 'func' literals in 'go' statements might have unexpected values</code> 警告，产生这问题的原因是 goroutine 中的匿名函数执行的时机时不确定的，执行匿名函数时，a 的值可能已经改变了。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 2 
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>array</span> <span style=color:#f92672>:=</span> []<span style=color:#66d9ef>int</span>{<span style=color:#ae81ff>1</span>, <span style=color:#ae81ff>2</span>, <span style=color:#ae81ff>3</span>, <span style=color:#ae81ff>4</span>, <span style=color:#ae81ff>5</span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>a</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>array</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>            <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Print</span>(<span style=color:#a6e22e>a</span>)
+</span></span><span style=display:flex><span>        }()
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Sleep</span>(<span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Second</span>)
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>修改方式有很多，可以将 <code>a</code> 赋值另一个变量，如 程序 3 所示，用 <code>i</code> 暂存 <code>a</code> 的值，这样就可以输出预期的结果。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 3 
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>array</span> <span style=color:#f92672>:=</span> []<span style=color:#66d9ef>int</span>{<span style=color:#ae81ff>1</span>, <span style=color:#ae81ff>2</span>, <span style=color:#ae81ff>3</span>, <span style=color:#ae81ff>4</span>, <span style=color:#ae81ff>5</span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>a</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>array</span> {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>a</span>
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>            <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>i</span>)
+</span></span><span style=display:flex><span>        }()
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Sleep</span>(<span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Second</span>)
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>或者将 <code>a</code> 作为参数传递给 goroutine 的匿名函数，如程序 4 所示。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// 程序 4 
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>array</span> <span style=color:#f92672>:=</span> []<span style=color:#66d9ef>int</span>{<span style=color:#ae81ff>1</span>, <span style=color:#ae81ff>2</span>, <span style=color:#ae81ff>3</span>, <span style=color:#ae81ff>4</span>, <span style=color:#ae81ff>5</span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>a</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>array</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>i</span> <span style=color:#66d9ef>int</span>) {
+</span></span><span style=display:flex><span>            <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>i</span>)
+</span></span><span style=display:flex><span>        }(<span style=color:#a6e22e>a</span>)
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Sleep</span>(<span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Second</span>)
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h1 id=close-a-closed-channel>close a closed channel</h1><p>golang 中 channel 不能重复 close，这应该是大家都知道的问题。这里就不再赘述。golang 中 channel 可以不关闭，如果 channel 不再被使用，即使不关闭也会被回收。通常 close channel 会作为 channel 不会再有数据的控制信号，如果接收方不关心 channel 中是否还会有数据，那么没必要主动关闭 channel。如果要关闭 channel，则最好是由发送方来关闭。</p><blockquote><p>Note that it is only necessary to close a channel if the receiver is looking for a close. Closing the channel is a control signal on the channel indicating that no more data follows.</p></blockquote><p>关于 channel 还有以下几个点需要注意：</p><ul><li>channel 的零值是 <code>nil</code>，使用前需要先初始化</li><li>向未初始化的 channel 发送数据会 block</li><li>从未初始化的 channel 读数据会 block</li><li>向已经 closed 的 channel 发数据会 panic</li><li>从已经 closed 的 channel 读数据不会 panic，会读到 channel 中未被读取的数据或默认值</li></ul><h1 id=make-的三种数据类型>make 的三种数据类型</h1><p>make 函数可以用于创建 channel、slice、map。其中 channel 必须先初始化；而 map 则可以只做声明；而如果要用 index 操作 slice，则 slice 也必须初始化，而使用 append 则可以不用初始化。</p><p>处于对性能的考虑，使用 map 或 slice 时，如果能提前预估容量，则推荐先初始化再使用，并且在初始化的时候指定容量。</p><h1 id=深-copy-or-浅-copy>深 copy or 浅 copy</h1><p>深 copy 会重新开辟内存空间并创建一个一样的对象，新对象和原来的对象不会共享内存空间。浅 copy 只会 copy 数据的地址，新对象和原来的对象指向同一块内存空间。</p><p>先说结论，值类型默认深 copy，比如 int、 string、数组、结构体等；引用类型默认浅 copy，比如 slice、map等。</p><p>再来看几个示例。</p><p>程序 5 展示了数组类型深拷贝的示例，虽然将 a 赋值给 b，但 a 和 b 是不同的数组，修改 b 并不会影响 a。</p><pre tabindex=0><code>// 程序 5
+func main() {
+    a := [3]int{1, 2, 3}
+    b := a
+    fmt.Printf(&#34;a: %+v, %p \n&#34;, a, &amp;a) // a: [1 2 3], 0xc00001c0a8 
+    fmt.Printf(&#34;b: %+v, %p \n&#34;, b, &amp;b) // b: [1 2 3], 0xc00001c0c0 
+    b[0] = 0
+    fmt.Printf(&#34;a: %+v, %p \n&#34;, a, &amp;a) // a: [1 2 3], 0xc00001c0a8 
+    fmt.Printf(&#34;b: %+v, %p \n&#34;, b, &amp;b) // b: [0 2 3], 0xc00001c0c0
+}
+</code></pre><p>程序 6 展示了 slice 类型浅拷贝的示例，a 和 b 指向同一个地址，如果修改了 b ，那么 a 也会随着变。</p><pre tabindex=0><code>// 程序 6
+func main() {
+    a := []int{1, 2, 3}
+    b := a
+    fmt.Printf(&#34;a: %+v, %p \n&#34;, a, a) // a: [1 2 3], 0xc0000b4018
+    fmt.Printf(&#34;b: %+v, %p \n&#34;, b, b) // b: [1 2 3], 0xc0000b4018
+    b[0] = 0
+    fmt.Printf(&#34;a: %+v, %p \n&#34;, a, a) // a: [0 2 3], 0xc0000b4018
+    fmt.Printf(&#34;b: %+v, %p \n&#34;, b, b) // b: [0 2 3], 0xc0000b4018
+}
+</code></pre><h1 id=slice-作为-参数>slice 作为 参数</h1><p>slice 中的 array 是指针类型，作为参数传递的是指针的值，但是 slice 是一个结构体，并不完全是一个指针，slice 的结构如程序 7 所示。</p><pre tabindex=0><code>// 程序 7
+type slice struct {
+    array unsafe.Pointer
+    len   int
+    cap   int
+}
+</code></pre><p>看下面这个示例，想在 <code>appendSlice</code> 函数中将元素 append 到 a，但最终输出的结果为 <code>[1, 2, 3]</code>，而并不是我们期望的结果。再回过来看 slice 的结构，其中的 array 是指针，而 len 和 cap 则是普通的 int 值，所以 slice 作为函数参数时，修改其长度，可能会得到非预期的结果。</p><pre tabindex=0><code>// 程序 8
+func main() {
+    a := []int{1, 2, 3}
+    appendSlice(a, 4)
+    fmt.Println(a) // [1, 2, 3]
+}
+
+func appendSlice(s []int, a int) {
+    s = append(s, a)
+}
+</code></pre><h1 id=intuint-的长度不是固定的>int/uint 的长度不是固定的</h1><p>int 数据类型的长度不是固定的，长度和平台有关，可能是 32 位，也可能是 64 位。</p><h1 id=中文字符串长度问题>中文字符串长度问题</h1><p>计算中文字符串长度的时，不能简单的用 <code>len()</code> 函数，而应该使用 <code>utf8.RuneCountInString()</code>，或者先转换为 <code>rune</code> 数组，然后计算数组长度。golang 中字符串是字节数组，<code>len()</code> 函数用于计算字符串字节长度，<code>utf8.RuneCountInString()</code> 会计算字符长度。</p><pre tabindex=0><code>s1 := &#34;Hello, World!&#34;
+fmt.Println(len(s1)) //13
+s2 := &#34;你好，世界！&#34;
+fmt.Println(len(s2)) // 18
+fmt.Println(utf8.RuneCountInString(s2)) // 6
+rs := []rune(s2)
+fmt.Println(len(rs)) // 6
+</code></pre><p><strong>未完待续&mldr;&mldr;</strong></p></article><section class=post-nav><ul><li><a href=https://sunpe.github.io/posts/2022-11-21-grafana-datasource-plugin-column-name-bug/><i class="fa fa-chevron-circle-left"></i> grafana plugin 查询结果列名 bug 排查</a></li><li></li></ul></section></main><footer><ul><li><h6>Copyright © 2022 - sunpeng |
+Rendered by <a href=https://gohugo.io title=Hugo>Hugo</a> |
+<a href=https://sunpe.github.ioindex.xml>Subscribe</a></h6></li></ul></footer></div><script src=https://sunpe.github.io/js/scripts.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga("create","UA-161915530-1","auto"),ga("send","pageview"))</script><script async src=https://www.google-analytics.com/analytics.js></script>
+<script id=baidu_analytics>var _hmt=_hmt||[];(function(){if(window.location.hostname==="localhost")return;var t,e=document.createElement("script");e.async=!0,e.src="https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script><script id=baidu_push>(function(){if(window.location.hostname==="localhost")return;var t,n,e=document.createElement("script");e.async=!0,n=window.location.protocol.split(":")[0],n==="https"?e.src="https://zz.bdstatic.com/linksubmit/push.js":e.src="http://push.zhanzhang.baidu.com/push.js",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script></body></html>
