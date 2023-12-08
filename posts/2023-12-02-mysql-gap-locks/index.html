@@ -1,0 +1,219 @@
+<!doctype html><html lang=en><head><title>MySql 间隙锁整理 - hello world</title>
+<meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="stay foolish, stay hungry"><meta name=author content="sunpeng"><meta name=baidu-site-verification content="vWQN0uJLC2"><meta property="og:title" content="MySql 间隙锁整理"><meta property="og:description" content="MySql InnoDB 事务隔离级别是 RR 的情况下，间隙锁会封锁该条记录相邻两个键之间的空白区域，防止其它事务在这个区域内插入、修改、删除数据，以防止出现幻读现象。"><meta property="og:type" content="article"><meta property="og:url" content="https://sunpe.github.io/posts/2023-12-02-mysql-gap-locks/"><meta property="article:section" content="posts"><meta property="article:published_time" content="2023-12-02T22:00:00+08:00"><meta property="article:modified_time" content="2023-12-02T22:00:00+08:00"><meta name=generator content="Hugo 0.121.1"><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin=anonymous><link rel=stylesheet href=https://sunpe.github.io/fontawesome/css/all.min.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda"><link rel=stylesheet type=text/css href=https://sunpe.github.io/css/styles.css></head><body><div id=container><header><h1><a href=https://sunpe.github.io/>hello world</a></h1><ul id=social-media></ul><p><em>stay foolish, stay hungry</em></p></header><nav><ul><li><a href=https://sunpe.github.io/><i class="fa-li fa fa-lg"></i><span>Home</span></a></li><li><a href=https://sunpe.github.io/posts/><i class="fa-li fa fa-lg"></i><span>Posts</span></a></li><li><a href=https://sunpe.github.io/tags/><i class="fa-li fa fa-lg"></i><span>Tags</span></a></li><li><a href=https://sunpe.github.io/categories/><i class="fa-li fa fa-lg"></i><span>Categories</span></a></li><li><a href=https://sunpe.github.io/about/><i class="fa-li fa fa-lg"></i><span>About</span></a></li></ul></nav><main><article><h1>MySql 间隙锁整理</h1><aside><ul><li><time class=post-date datetime=2023-12-02T22:00:00+08:00>Dec 2, 2023</time></li><li>Categories:
+<em><a href=https://sunpe.github.io/categories/database>database</a>
+,
+<a href=https://sunpe.github.io/categories/mysql>mysql</a></em></li><li>Tags:
+<em><a href=https://sunpe.github.io/tags/database>#database</a>
+,
+<a href=https://sunpe.github.io/tags/mysql>#mysql</a></em></li><li>6 minutes read</li></ul></aside><div class=featured_image><a href=https://sunpe.github.io/posts/2023-12-02-mysql-gap-locks/ title="MySql 间隙锁整理"><img src></a></div><p>MySql InnoDB 事务隔离级别是 RR 的情况下，间隙锁会封锁该条记录相邻两个键之间的空白区域，防止其它事务在这个区域内插入、修改、删除数据，以防止出现幻读现象。</p><p>MySql InnoDb 默认开启间隙锁，查看是间隙锁开启状态：</p><pre tabindex=0><code>show variables like &#39;innodb_locks_unsafe_for_binlog&#39;;
+</code></pre><p>间隙锁产生条件可以分为以下三种情况：</p><ul><li>使用普通索引锁定</li><li>使用多列唯一索引 （使用一列唯一索引锁定不产生间隙锁）</li><li>使用唯一索引锁定多行记录</li></ul><h1 id=唯一索引的间隙锁>唯一索引的间隙锁</h1><p>假如有如下数据表：</p><pre tabindex=0><code>CREATE TABLE `test` (
+  `id` int(1) NOT NULL AUTO_INCREMENT,
+  `name` varchar(8) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+</code></pre><h2 id=执行-insert-操作>执行 insert 操作</h2><p>执行插入语句：</p><pre tabindex=0><code>INSERT INTO `test` VALUES (&#39;1&#39;, &#39;小罗&#39;);
+INSERT INTO `test` VALUES (&#39;5&#39;, &#39;小黄&#39;);
+INSERT INTO `test` VALUES (&#39;7&#39;, &#39;小明&#39;);
+INSERT INTO `test` VALUES (&#39;11&#39;, &#39;小红&#39;);
+</code></pre><p>以下区间会被锁住：</p><ul><li>(-infinity, 1]</li><li>(1, 5]</li><li>(5, 7]</li><li>(7, 11]</li><li>(11, +infinity]</li></ul><h2 id=使用唯一索引锁定一行>使用唯一索引锁定一行</h2><p>如果只根据主键或唯一索引锁定一行，不会产生间隙锁，比如如下操作，只对 <code>id=5</code> 这一行加锁，则不会产生间隙锁，也不会阻塞之后的写入。</p><pre tabindex=0><code>/* 开启事务1 */
+BEGIN;
+/* 查询 id = 5 的数据并加记录锁 */
+SELECT * FROM `test` WHERE `id` = 5 FOR UPDATE;
+/* 延迟30秒执行，防止锁释放 */
+SELECT SLEEP(30);
+
+# 注意：以下的语句不是放在一个事务中执行，而是分开多次执行，每次事务中只有一条添加语句
+
+/* 事务2插入一条 name = &#39;小张&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (4, &#39;小张&#39;); # 正常执行
+
+/* 事务3插入一条 name = &#39;小张&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (8, &#39;小东&#39;); # 正常执行
+
+/* 提交事务1，释放事务1的锁 */
+COMMIT;
+</code></pre><h2 id=使用唯一索引或主键索引锁定多行>使用唯一索引或主键索引锁定多行</h2><p>使用唯一索引或主键索引锁定多行，会产生间隙锁，例如如下操作锁定 <code>[5, 7]</code>，则会产生间隙锁，<code>(5, 7]</code>、<code>(7, 11]</code> 这两个区间，都不可插入数据，其他区间可以正常插入数据。</p><pre tabindex=0><code>/* 开启事务1 */
+BEGIN;
+/* 查询 id 在 7 - 11 范围的数据并加记录锁 */
+SELECT * FROM `test` WHERE `id` &gt;= 5 AND `id` &lt;= 7 FOR UPDATE;
+/* 延迟30秒执行，防止锁释放 */
+SELECT SLEEP(30);
+
+# 注意：以下的语句不是放在一个事务中执行，而是分开多次执行，每次事务中只有一条添加语句
+
+/* 事务2插入一条 id = 3，name = &#39;小张1&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (3, &#39;小张1&#39;); # 正常执行
+
+/* 事务3插入一条 id = 4，name = &#39;小白&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (4, &#39;小白&#39;); # 正常执行
+
+/* 事务4插入一条 id = 6，name = &#39;小东&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (6, &#39;小东&#39;); # 阻塞
+
+/* 事务5插入一条 id = 8， name = &#39;大罗&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (8, &#39;大罗&#39;); # 阻塞
+
+/* 事务6插入一条 id = 9， name = &#39;大东&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (9, &#39;大东&#39;); # 阻塞
+
+/* 事务7插入一条 id = 11， name = &#39;李西&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (11, &#39;李西&#39;); # 阻塞
+
+/* 事务8插入一条 id = 12， name = &#39;张三&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (12, &#39;张三&#39;); # 正常执行
+
+/* 提交事务1，释放事务1的锁 */
+COMMIT;
+</code></pre><h2 id=锁住的数据不存在的情况>锁住的数据不存在的情况</h2><p>锁住的数据不存在的情况，会产生间隙锁，如下操作锁住一条不存在的数据，产生了间隙锁</p><pre tabindex=0><code>/* 开启事务1 */
+BEGIN;
+/* 查询 id = 3 这一条不存在的数据并加记录锁 */
+SELECT * FROM `test` WHERE `id` = 3 FOR UPDATE;
+/* 延迟30秒执行，防止锁释放 */
+SELECT SLEEP(30);
+
+# 注意：以下的语句不是放在一个事务中执行，而是分开多次执行，每次事务中只有一条添加语句
+
+/* 事务2插入一条 id = 3，name = &#39;小张1&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (2, &#39;小张1&#39;); # 阻塞
+
+/* 事务3插入一条 id = 4，name = &#39;小白&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (4, &#39;小白&#39;); # 阻塞
+
+/* 事务4插入一条 id = 6，name = &#39;小东&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (6, &#39;小东&#39;); # 正常执行
+
+/* 事务5插入一条 id = 8， name = &#39;大罗&#39; 的数据 */
+INSERT INTO `test` (`id`, `name`) VALUES (8, &#39;大罗&#39;); # 正常执行
+
+/* 提交事务1，释放事务1的锁 */
+COMMIT;
+</code></pre><h2 id=小结>小结</h2><ul><li>根据主键或唯一索引对某一条记录加锁，如果记录不存在会产生行锁和间隙锁，如果记录存在，只会产生行锁。</li><li>范围查询加锁，会产生间隙锁</li></ul><h1 id=普通索引的间隙锁>普通索引的间隙锁</h1><p>假如有如下数据表</p><pre tabindex=0><code>CREATE TABLE `test1` (
+  `id` int(1) NOT NULL AUTO_INCREMENT,
+  `number` int(1) NOT NULL COMMENT &#39;数字&#39;, # number 不是唯一值
+  PRIMARY KEY (`id`),
+  KEY `number` (`number`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+</code></pre><h2 id=数据写入>数据写入</h2><p>执行如下 insert 操作</p><pre tabindex=0><code>INSERT INTO `test1` VALUES (1, 1);
+INSERT INTO `test1` VALUES (5, 3);
+INSERT INTO `test1` VALUES (7, 8);
+INSERT INTO `test1` VALUES (11, 12);
+</code></pre><p>以下区间会被锁住：</p><ol><li>(-infinity, 1]</li><li>(1, 3]</li><li>(3, 8]</li><li>(8, 12]</li><li>(12, +infinity]</li></ol><h2 id=使用普通索引>使用普通索引</h2><p>执行如下操作，对 <code>number=3</code> 数据加锁，导致区间 <code>[1,8)</code> 被锁住。</p><pre tabindex=0><code>/* 开启事务1 */
+BEGIN;
+/* 查询 number = 3 的数据并加行锁 */
+SELECT * FROM `test1` WHERE `number` = 3 FOR UPDATE;
+/* 延迟30秒执行，防止锁释放 */
+SELECT SLEEP(30);
+
+# 注意：以下的语句不是放在一个事务中执行，而是分开多次执行，每次事务中只有一条添加语句
+
+/* 事务2插入一条 number = 0 的数据 */
+INSERT INTO `test1` (`number`) VALUES (0); # 正常执行
+
+/* 事务3插入一条 number = 1 的数据 */
+INSERT INTO `test1` (`number`) VALUES (1); # 被阻塞
+
+/* 事务4插入一条 number = 2 的数据 */
+INSERT INTO `test1` (`number`) VALUES (2); # 被阻塞
+
+/* 事务5插入一条 number = 4 的数据 */
+INSERT INTO `test1` (`number`) VALUES (4); # 被阻塞
+
+/* 事务6插入一条 number = 8 的数据 */
+INSERT INTO `test1` (`number`) VALUES (8); # 正常执行
+
+/* 事务7插入一条 number = 9 的数据 */
+INSERT INTO `test1` (`number`) VALUES (9); # 正常执行
+
+/* 事务8插入一条 number = 10 的数据 */
+INSERT INTO `test1` (`number`) VALUES (10); # 正常执行
+
+/* 提交事务1 */
+COMMIT;
+</code></pre><h2 id=使用普通索引锁住不存在的数据>使用普通索引锁住不存在的数据</h2><p>执行如下操作，锁住一条不存在的数据 <code>number=5</code>，<code>(1,3)</code>、<code>(3,8)</code>、<code>(8,12)</code>、<code>(12,+infinity)</code> 区间被阻塞</p><pre tabindex=0><code>/* 开启事务1 */
+BEGIN;
+/* 查询 number = 5 的数据并加记录锁 */
+SELECT * FROM `test1` WHERE `number` = 5 FOR UPDATE;
+/* 延迟30秒执行，防止锁释放 */
+SELECT SLEEP(30);
+
+/* 事务1插入一条 id = 2， number = 1 的数据 */
+INSERT INTO `test1` (`id`, `number`) VALUES (2, 1); # 阻塞
+
+/* 事务2插入一条 id = 3， number = 2 的数据 */
+INSERT INTO `test1` (`id`, `number`) VALUES (3, 2); # 阻塞
+
+/* 事务3插入一条 id = 6， number = 8 的数据 */
+INSERT INTO `test1` (`id`, `number`) VALUES (6, 8); # 阻塞
+
+/* 事务4插入一条 id = 8， number = 8 的数据 */
+INSERT INTO `test1` (`id`, `number`) VALUES (8, 8); # 正常执行
+
+/* 事务5插入一条 id = 9， number = 9 的数据 */
+INSERT INTO `test1` (`id`, `number`) VALUES (9, 9); # 正常执行
+
+/* 事务6插入一条 id = 10， number = 12 的数据 */
+INSERT INTO `test1` (`id`, `number`) VALUES (10, 12); # 正常执行
+
+/* 事务7修改 id = 11， number = 12 的数据 */
+UPDATE `test1` SET `number` = 5 WHERE `id` = 11 AND `number` = 12; # 阻塞
+
+/* 提交事务1 */
+COMMIT;
+</code></pre><h2 id=小结-1>小结</h2><ul><li>在普通索引列上，不管是何种查询，只要加锁，都会产生间隙锁</li><li>在普通索引跟唯一索引中，数据间隙的分析，数据行是优先根据普通索引排序，再根据唯一索引排序</li></ul><h1 id=总结>总结</h1><ul><li>唯一索引只有锁住多条记录或者一条不存在的记录的时候，才会产生间隙锁</li><li>普通索引不管是锁住单条，还是多条记录，都会产生间隙锁</li></ul><pre tabindex=0><code>CREATE TABLE test (
+  `id` int(1) NOT NULL AUTO_INCREMENT,
+  `age` int(1) NOT NULL ,
+  `name` varchar(8) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  key `idx_age` (`age`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `test` VALUES (1, 10, &#39;赵&#39;);
+INSERT INTO `test` VALUES (5, 15, &#39;钱&#39;);
+INSERT INTO `test` VALUES (10, 20, &#39;孙&#39;);
+INSERT INTO `test` VALUES (15, 25, &#39;李&#39;);
+
+# 主键/唯一索引 锁定单条记录 不产生间隙锁 对间隙记录修改不阻塞
+
+begin;
+
+select * from `test` where id=5 for update ;
+select sleep(30);
+
+# insert into `test`.`test` values (4, 14, &#39;周&#39;); # 不阻塞
+# insert into `test`.`test` values (6, 16, &#39;吴&#39;); # 不阻塞
+
+# 主键/唯一索引 锁定多条记录 产生间隙锁 对间隙记录修改阻塞
+
+begin;
+
+select * from `test` where id&gt;=5 and id&lt;=10 for update ;
+select sleep(30);
+
+# insert into `test`.`test` values (3, 13, &#39;郑&#39;); # 不阻塞
+# insert into `test`.`test` values (7, 17, &#39;王&#39;); # 阻塞
+
+# 主键/唯一索引 锁住不存在的数据时 产生间隙锁 对间隙记录修改阻塞
+
+begin;
+
+select * from `test` where id =7 for update ;
+select sleep(30);
+
+# insert into `test`.`test` values (2, 12, &#39;郑&#39;); # 不阻塞
+# insert into `test`.`test` values (8, 18, &#39;王&#39;); # 阻塞
+
+# 普通索引 锁住单行
+
+delete from test.test where id in (2, 3, 4, 6, 7, 8);
+
+begin;
+select * from `test` where age = 15 for update ;
+select sleep(30);
+commit;
+
+# insert into `test`.`test` values (4, 13, &#39;周&#39;);  # 阻塞
+# insert into `test`.`test` values (6, 18, &#39;吴&#39;);  # 阻塞
+# insert into `test`.`test` values (12, 22, &#39;郑&#39;);  # 不阻塞
+</code></pre></article><section class=post-nav><ul><li><a href=https://sunpe.github.io/posts/2023-05-10-experience-in-golang/><i class="fa fa-chevron-circle-left"></i> golang 踩坑总结</a></li><li></li></ul></section></main><footer><ul><li><h6>Copyright © 2022 - sunpeng |
+Rendered by <a href=https://gohugo.io title=Hugo>Hugo</a> |
+<a href=https://sunpe.github.ioindex.xml>Subscribe</a></h6></li></ul></footer></div><script src=https://sunpe.github.io/js/scripts.js></script><script>var doNotTrack=!1;doNotTrack||(function(e,t,n,s,o,i,a){e.GoogleAnalyticsObject=o,e[o]=e[o]||function(){(e[o].q=e[o].q||[]).push(arguments)},e[o].l=1*new Date,i=t.createElement(n),a=t.getElementsByTagName(n)[0],i.async=1,i.src=s,a.parentNode.insertBefore(i,a)}(window,document,"script","https://www.google-analytics.com/analytics.js","ga"),ga("create","UA-161915530-1","auto"),ga("send","pageview"))</script><script id=baidu_analytics>var _hmt=_hmt||[];(function(){if(window.location.hostname==="localhost")return;var t,e=document.createElement("script");e.async=!0,e.src="https://hm.baidu.com/hm.js?567e1c9bcb80e3b8c4f1c1dbf8bb9fab",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script><script id=baidu_push>(function(){if(window.location.hostname==="localhost")return;var t,n,e=document.createElement("script");e.async=!0,n=window.location.protocol.split(":")[0],n==="https"?e.src="https://zz.bdstatic.com/linksubmit/push.js":e.src="http://push.zhanzhang.baidu.com/push.js",t=document.getElementsByTagName("script")[0],t.parentNode.insertBefore(e,t)})()</script></body></html>
